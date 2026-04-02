@@ -37,7 +37,7 @@ class ResultVisualizer:
 
     def plot_distribution_histogram(self, results: List, layer_idx: int = None):
         """
-        绘制分布直方图 - 左图：honest + random_noise，右图：honest + replay
+        绘制分布直方图 - 使用双y轴解决密度差异问题
 
         Args:
             results: SimilarityResult 列表
@@ -50,11 +50,9 @@ class ResultVisualizer:
                 data[r.label].append(r.cosine_similarity)
 
         colors = {
-            'honest': '#2ecc71',  # 绿色
-            'random_noise': '#e74c3c',  # 红色
-            'replay': '#3498db',  # 蓝色
-            'layer_skip': '#f39c12',  # 橙色
-            'precision_downgrade': '#9b59b6',  # 紫色
+            'honest': '#2ecc71',
+            'random_noise': '#e74c3c',
+            'replay': '#3498db',
         }
 
         honest_data = data.get('honest', [])
@@ -64,49 +62,74 @@ class ResultVisualizer:
         # 创建两个子图
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
 
-        # ========== 左图：honest + random_noise ==========
-        if honest_data:
-            ax1.hist(honest_data, bins=50, alpha=0.7, color=colors['honest'],
-                     label=f'honest (n={len(honest_data)})', density=True)
+        # ========== 左图：honest + random_noise（双y轴）==========
+        if random_noise_labels:
+            # 主y轴：random_noise（红色）
+            for label in sorted(random_noise_labels):
+                ax1.hist(data[label], bins=50, alpha=0.6, color=colors['random_noise'],
+                        label=label, density=True)
+            ax1.set_ylabel('Density (Random Noise)', color=colors['random_noise'], fontsize=12)
+            ax1.tick_params(axis='y', labelcolor=colors['random_noise'])
+            ax1.set_ylim(bottom=0)
 
-        for label in sorted(random_noise_labels):
-            color = colors.get('random_noise', None)
-            ax1.hist(data[label], bins=50, alpha=0.6, label=label, color=color, density=True)
+        # 次y轴：honest（绿色）- 显示在右侧
+        if honest_data:
+            ax1_twin = ax1.twinx()
+            ax1_twin.hist(honest_data, bins=50, alpha=0.7, color=colors['honest'],
+                         label=f'honest (n={len(honest_data)})', density=True)
+            ax1_twin.set_ylabel('Density (Honest)', color=colors['honest'], fontsize=12)
+            ax1_twin.tick_params(axis='y', labelcolor=colors['honest'])
+            ax1_twin.set_ylim(bottom=0)
 
         ax1.set_xlabel('Cosine Similarity', fontsize=12)
-        ax1.set_ylabel('Density', fontsize=12)
-        ax1.set_title('Honest vs Random Noise', fontsize=14)
-        ax1.legend()
+        ax1.set_title('Honest vs Random Noise (Dual Y-axis)', fontsize=14)
         ax1.grid(True, alpha=0.3)
 
-        # 自适应 x 轴范围
-        all_noise_data = [v for l in random_noise_labels for v in data[l]] + honest_data
-        if all_noise_data:
-            x_min, x_max = min(all_noise_data), max(all_noise_data)
-            margin = (x_max - x_min) * 0.1
-            ax1.set_xlim(x_min - margin, x_max + margin)
-
-        # ========== 右图：honest + replay ==========
+        # 合并图例
+        lines1, labels1 = ax1.get_legend_handles_labels()
         if honest_data:
-            ax2.hist(honest_data, bins=50, alpha=0.7, color=colors['honest'],
-                     label=f'honest (n={len(honest_data)})', density=True)
+            lines2, labels2 = ax1_twin.get_legend_handles_labels()
+            ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+        else:
+            ax1.legend(loc='upper left')
 
-        for label in sorted(replay_labels):
-            color = colors.get('replay', None)
-            ax2.hist(data[label], bins=50, alpha=0.6, label=label, color=color, density=True)
+        # ========== 右图：honest + replay（双y轴）==========
+        if replay_labels:
+            # 主y轴：replay（蓝色）
+            for label in sorted(replay_labels):
+                ax2.hist(data[label], bins=50, alpha=0.6, color=colors['replay'],
+                        label=label, density=True)
+            ax2.set_ylabel('Density (Replay)', color=colors['replay'], fontsize=12)
+            ax2.tick_params(axis='y', labelcolor=colors['replay'])
+            ax2.set_ylim(bottom=0)
+
+        # 次y轴：honest（绿色）
+        if honest_data:
+            ax2_twin = ax2.twinx()
+            ax2_twin.hist(honest_data, bins=50, alpha=0.7, color=colors['honest'],
+                         label=f'honest (n={len(honest_data)})', density=True)
+            ax2_twin.set_ylabel('Density (Honest)', color=colors['honest'], fontsize=12)
+            ax2_twin.tick_params(axis='y', labelcolor=colors['honest'])
+            ax2_twin.set_ylim(bottom=0)
 
         ax2.set_xlabel('Cosine Similarity', fontsize=12)
-        ax2.set_ylabel('Density', fontsize=12)
-        ax2.set_title('Honest vs Replay', fontsize=14)
-        ax2.legend()
+        ax2.set_title('Honest vs Replay (Dual Y-axis)', fontsize=14)
         ax2.grid(True, alpha=0.3)
 
-        # 自适应 x 轴范围 - 放大显示 honest 和 replay 的差异
+        # x轴范围自适应
         all_replay_data = [v for l in replay_labels for v in data[l]] + honest_data
         if all_replay_data:
             x_min, x_max = min(all_replay_data), max(all_replay_data)
             margin = (x_max - x_min) * 0.1
             ax2.set_xlim(x_min - margin, x_max + margin)
+
+        # 合并图例
+        lines1, labels1 = ax2.get_legend_handles_labels()
+        if honest_data:
+            lines2, labels2 = ax2_twin.get_legend_handles_labels()
+            ax2.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+        else:
+            ax2.legend(loc='upper left')
 
         title = f'Distribution of Cosine Similarities'
         if layer_idx is not None:
