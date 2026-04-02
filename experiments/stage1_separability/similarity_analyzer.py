@@ -364,8 +364,8 @@ class SeparabilityAnalyzer:
         return {
             'ks_statistic': float(statistic),
             'p_value': float(p_value),
-            'significant_at_0.05': p_value < 0.05,
-            'significant_at_0.01': p_value < 0.01,
+            'significant_at_0.05': bool(p_value < 0.05),
+            'significant_at_0.01': bool(p_value < 0.01),
         }
 
     def comprehensive_analysis(self) -> Dict:

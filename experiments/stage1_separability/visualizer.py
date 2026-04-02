@@ -37,7 +37,7 @@ class ResultVisualizer:
 
     def plot_distribution_histogram(self, results: List, layer_idx: int = None):
         """
-        绘制分布直方图
+        绘制分布直方图 - 使用双轴展示所有数据
 
         Args:
             results: SimilarityResult 列表
@@ -49,8 +49,6 @@ class ResultVisualizer:
             if layer_idx is None or r.layer_idx == layer_idx:
                 data[r.label].append(r.cosine_similarity)
 
-        plt.figure(figsize=(12, 6))
-
         colors = {
             'honest': '#2ecc71',  # 绿色
             'random_noise': '#e74c3c',  # 红色
@@ -59,18 +57,41 @@ class ResultVisualizer:
             'precision_downgrade': '#9b59b6',  # 紫色
         }
 
+        # 创建两个子图：左图展示完整范围，右图展示诚实样本细节
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+        # 左图：完整范围（展示攻击样本）
         for label, scores in data.items():
             color = colors.get(label.split('_')[0], None)
-            plt.hist(scores, bins=50, alpha=0.6, label=label, color=color, density=True)
+            ax1.hist(scores, bins=50, alpha=0.6, label=label, color=color, density=True)
 
-        plt.xlabel('Cosine Similarity', fontsize=12)
-        plt.ylabel('Density', fontsize=12)
+        ax1.set_xlabel('Cosine Similarity (Full Range)', fontsize=12)
+        ax1.set_ylabel('Density', fontsize=12)
+        ax1.set_title('Full Distribution View', fontsize=14)
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        ax1.set_xlim(-0.2, 1.1)  # 固定范围以展示所有数据
+
+        # 右图：诚实样本细节（放大视图）
+        if 'honest' in data:
+            honest_scores = data['honest']
+            ax2.hist(honest_scores, bins=50, alpha=0.7, color='#2ecc71',
+                     label=f'honest (n={len(honest_scores)})', density=True)
+            ax2.set_xlabel('Cosine Similarity (Honest Detail)', fontsize=12)
+            ax2.set_ylabel('Density', fontsize=12)
+
+            # 自适应范围：均值 ± 5倍标准差
+            mean_val = np.mean(honest_scores)
+            std_val = np.std(honest_scores)
+            ax2.set_xlim(max(-0.1, mean_val - 5*std_val), min(1.05, mean_val + 5*std_val))
+            ax2.set_title(f'Honest Samples Detail (μ={mean_val:.4f}, σ={std_val:.4f})', fontsize=14)
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+
         title = f'Distribution of Cosine Similarities'
         if layer_idx is not None:
             title += f' (Layer {layer_idx})'
-        plt.title(title, fontsize=14)
-        plt.legend()
-        plt.grid(True, alpha=0.3)
+        fig.suptitle(title, fontsize=16, fontweight='bold')
 
         name = f"distribution_histogram_layer{layer_idx if layer_idx else 'all'}"
         self._save_figure(name)
