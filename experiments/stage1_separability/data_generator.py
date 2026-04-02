@@ -366,7 +366,7 @@ class DatasetLoader:
         "c4": "AI-ModelScope/c4",
         "openwebtext": "AI-ModelScope/openwebtext",
         # 指令微调数据集（推荐）
-        "alpaca": "AI-ModelScope/alpaca-gpt4-data",
+        "alpaca": "AI-ModelScope/alpaca-gpt4-data-en",
         "alpaca-cleaned": "AI-ModelScope/alpaca-data-cleaned",
         "dolly": "AI-ModelScope/dolly-15k",
         "sharegpt": "AI-ModelScope/sharegpt-json",
@@ -420,16 +420,12 @@ class DatasetLoader:
 
                 # 2. 指令微调格式 (Alpaca, Dolly, etc.)
                 elif 'instruction' in item:
-                    # Alpaca 格式: instruction + input + output
+                    # Alpaca 格式: instruction + output 拼接作为输入
                     instruction = item.get('instruction', '')
-                    input_text = item.get('input', '')
                     output_text = item.get('output', '')
 
-                    # 组合成完整对话
-                    if input_text:
-                        text = f"Instruction: {instruction}\nInput: {input_text}\nOutput: {output_text}"
-                    else:
-                        text = f"Instruction: {instruction}\nOutput: {output_text}"
+                    # 拼接 instruction 和 output
+                    text = f"{instruction} {output_text}".strip()
 
                 # 3. ShareGPT 格式
                 elif 'conversations' in item:

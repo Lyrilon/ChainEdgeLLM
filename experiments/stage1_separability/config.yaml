@@ -31,7 +31,7 @@ model:
 dataset:
   name: "alpaca"  # 默认使用 Alpaca 指令数据
   # ModelScope 数据集 ID
-  modelscope_id: "AI-ModelScope/alpaca-gpt4-data"
+  modelscope_id: "AI-ModelScope/alpaca-gpt4-data-en"
   subset: "train"
   # 采样数量
   num_samples: 2000
