@@ -190,7 +190,8 @@ class AttackSampleGenerator:
                     size=sample.x_curr.shape
                 ).astype(np.float32)
 
-                x_malicious = sample.x_prev + noise
+                # 纯噪声替换：Byzantine Failure - 完全替换合法状态
+                x_malicious = noise
 
                 attack_sample = Sample(
                     sample_id=sample.sample_id,
