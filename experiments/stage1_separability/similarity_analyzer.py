@@ -251,7 +251,7 @@ class SeparabilityAnalyzer:
         min_score, max_score = np.min(all_scores), np.max(all_scores)
 
         # 搜索阈值
-        thresholds = np.linspace(min_score, max_score, 100)
+        thresholds = np.linspace(min_score, max_score, 10000)
         best_threshold = 0.5
         best_value = -1
 
