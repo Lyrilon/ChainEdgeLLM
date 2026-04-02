@@ -365,6 +365,11 @@ class DatasetLoader:
         "wikitext-103": "AI-ModelScope/wikitext-103-raw-v1",
         "c4": "AI-ModelScope/c4",
         "openwebtext": "AI-ModelScope/openwebtext",
+        # 指令微调数据集（推荐）
+        "alpaca": "AI-ModelScope/alpaca-gpt4-data",
+        "alpaca-cleaned": "AI-ModelScope/alpaca-data-cleaned",
+        "dolly": "AI-ModelScope/dolly-15k",
+        "sharegpt": "AI-ModelScope/sharegpt-json",
     }
 
     def __init__(self, dataset_name: str, cache_dir: str = "./data/cache"):
@@ -405,10 +410,43 @@ class DatasetLoader:
                     break
 
                 # 处理不同数据集格式
+                text = None
+
+                # 1. 标准文本格式 (WikiText, C4, etc.)
                 if 'text' in item:
                     text = item['text']
                 elif 'content' in item:
                     text = item['content']
+
+                # 2. 指令微调格式 (Alpaca, Dolly, etc.)
+                elif 'instruction' in item:
+                    # Alpaca 格式: instruction + input + output
+                    instruction = item.get('instruction', '')
+                    input_text = item.get('input', '')
+                    output_text = item.get('output', '')
+
+                    # 组合成完整对话
+                    if input_text:
+                        text = f"Instruction: {instruction}\nInput: {input_text}\nOutput: {output_text}"
+                    else:
+                        text = f"Instruction: {instruction}\nOutput: {output_text}"
+
+                # 3. ShareGPT 格式
+                elif 'conversations' in item:
+                    conversations = item['conversations']
+                    if isinstance(conversations, list):
+                        text = "\n".join([
+                            f"{conv.get('from', 'user')}: {conv.get('value', '')}"
+                            for conv in conversations
+                        ])
+
+                # 4. Dolly 格式
+                elif 'context' in item and 'response' in item:
+                    context = item.get('context', '')
+                    instruction = item.get('instruction', '')
+                    response = item.get('response', '')
+                    text = f"Context: {context}\nInstruction: {instruction}\nResponse: {response}"
+
                 else:
                     text = str(item)
 

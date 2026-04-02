@@ -83,13 +83,16 @@ stage1_separability/
 | GPT-2 | AI-ModelScope/gpt2 | 117M | 经典小模型(过时) |
 | LLaMA-2-7B | modelscope/Llama-2-7b-ms | 7B | 较大，需更多资源 |
 
-### 支持的数据集
+### 支持的数据集（推荐使用指令微调数据集）
 
-| 数据集 | ModelScope ID |
-|--------|--------------|
-| WikiText-2 | AI-ModelScope/wikitext-2-raw-v1 |
-| WikiText-103 | AI-ModelScope/wikitext-103-raw-v1 |
-| C4 | AI-ModelScope/c4 |
+| 数据集 | ModelScope ID | 类型 | 说明 |
+|--------|--------------|------|------|
+| **alpaca** 🔥 | AI-ModelScope/alpaca-gpt4-data | 指令微调 | **推荐**，52k 指令数据 |
+| alpaca-cleaned | AI-ModelScope/alpaca-data-cleaned | 指令微调 | 清洗版 Alpaca |
+| dolly | AI-ModelScope/dolly-15k | 指令微调 | Databricks 对话数据 |
+| sharegpt | AI-ModelScope/sharegpt-json | 指令微调 | ShareGPT 对话数据 |
+| wikitext | AI-ModelScope/wikitext-2-raw-v1 | 预训练 | WikiText-2 续写数据 |
+| c4 | AI-ModelScope/c4 | 预训练 | C4 数据集 |
 
 ## 配置说明
 

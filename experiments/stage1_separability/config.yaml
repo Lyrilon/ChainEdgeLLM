@@ -20,10 +20,18 @@ model:
   max_length: 256
 
 # 数据集配置 (使用 ModelScope 魔塔下载)
+# 推荐使用指令微调数据集 (更符合实际推理场景):
+#   - alpaca: 指令微调数据 (推荐)
+#   - alpaca-cleaned: 清洗版 Alpaca
+#   - dolly: Databricks Dolly 15k
+#   - sharegpt: ShareGPT 对话数据
+# 传统预训练数据:
+#   - wikitext: WikiText-2 (续写任务)
+#   - c4: C4 数据集
 dataset:
-  name: "wikitext"
+  name: "alpaca"  # 默认使用 Alpaca 指令数据
   # ModelScope 数据集 ID
-  modelscope_id: "AI-ModelScope/wikitext-2-raw-v1"
+  modelscope_id: "AI-ModelScope/alpaca-gpt4-data"
   subset: "train"
   # 采样数量
   num_samples: 2000
