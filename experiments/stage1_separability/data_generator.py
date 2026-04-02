@@ -459,33 +459,11 @@ class DatasetLoader:
 
         except ImportError as e:
             logger.error(f"缺少依赖: {e}")
-            logger.info("请运行: pip install addict")
-            logger.info("使用备用数据...")
-            return self._load_fallback(num_samples)
+            logger.error("请运行: pip install addict")
+            raise RuntimeError(f"缺少必要依赖: {e}") from e
         except Exception as e:
-            logger.error(f"从 ModelScope 加载失败: {e}")
-            logger.info("使用备用数据...")
-            return self._load_fallback(num_samples)
-
-    def _load_fallback(self, num_samples: int) -> List[str]:
-        """备用数据加载"""
-        # 使用一些示例文本
-        sample_texts = [
-            "The quick brown fox jumps over the lazy dog.",
-            "Machine learning is a subset of artificial intelligence.",
-            "Blockchain technology enables decentralized trust.",
-            "Large language models have revolutionized natural language processing.",
-            "Edge computing brings computation closer to data sources.",
-            "The Transformer architecture uses self-attention mechanisms.",
-            "Distributed systems require careful coordination and consensus.",
-            "Neural networks are inspired by biological neurons.",
-            "Cryptography ensures secure communication in open networks.",
-            "Cloud computing provides scalable on-demand resources.",
-        ]
-
-        # 复制扩充
-        texts = sample_texts * ((num_samples // len(sample_texts)) + 1)
-        return texts[:num_samples]
+            logger.error(f"从 ModelScope 加载数据集失败: {e}")
+            raise RuntimeError(f"数据集加载失败: {e}") from e
 
 
 def test_data_generator():
