@@ -292,6 +292,15 @@ def run_experiment(config: dict, quick_test: bool = False) -> dict:
 
     try:
         visualizer.plot_all(similarity_results, analyzer, attack_labels)
+
+        # 绘制混淆矩阵
+        logger.info("绘制混淆矩阵...")
+        visualizer.plot_confusion_matrices(analyzer, attack_labels)
+
+        # 保存详细报告
+        logger.info("保存详细报告...")
+        visualizer.save_detailed_report(analyzer, attack_labels, "detailed_report.txt")
+
     except Exception as e:
         logger.error(f"可视化生成失败: {e}")
         import traceback

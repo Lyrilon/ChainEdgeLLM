@@ -381,14 +381,182 @@ class SeparabilityAnalyzer:
             'optimal_thresholds': {},
             'roc_auc': {},
             'ks_tests': {},
+            'confusion_matrices': {},
         }
 
         for attack_label in self.attack_scores.keys():
             analysis['optimal_thresholds'][attack_label] = self.find_optimal_threshold(attack_label)
             analysis['roc_auc'][attack_label] = self.compute_roc_auc(attack_label)
             analysis['ks_tests'][attack_label] = self.kolmogorov_smirnov_test(attack_label)
+            analysis['confusion_matrices'][attack_label] = self.compute_confusion_matrix(attack_label)
 
         return analysis
+
+    def compute_confusion_matrix(self, attack_label: str, threshold: float = None) -> Dict:
+        """
+        计算混淆矩阵
+
+        Args:
+            attack_label: 攻击类型标签
+            threshold: 分类阈值，为None则使用最优阈值
+
+        Returns:
+            混淆矩阵字典
+        """
+        if attack_label not in self.attack_scores:
+            return {}
+
+        # 如果没有指定阈值，使用最优阈值
+        if threshold is None:
+            optimal = self.find_optimal_threshold(attack_label, metric='f1')
+            threshold = optimal.get('optimal_threshold', 0.5)
+
+        attack_scores = self.attack_scores[attack_label]
+
+        # 二分类: honest = 正类 (1), attack = 负类 (0)
+        y_true = np.concatenate([
+            np.ones(len(self.honest_scores)),
+            np.zeros(len(attack_scores))
+        ])
+        y_scores = np.concatenate([
+            self.honest_scores,
+            attack_scores
+        ])
+        y_pred = (y_scores >= threshold).astype(int)
+
+        # 计算混淆矩阵
+        tp = int(np.sum((y_true == 1) & (y_pred == 1)))
+        fp = int(np.sum((y_true == 0) & (y_pred == 1)))
+        tn = int(np.sum((y_true == 0) & (y_pred == 0)))
+        fn = int(np.sum((y_true == 1) & (y_pred == 0)))
+
+        # 计算评价指标
+        accuracy = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+        fpr = fp / (fp + tn) if (fp + tn) > 0 else 0
+        fnr = fn / (fn + tp) if (fn + tp) > 0 else 0
+
+        return {
+            'threshold': float(threshold),
+            'confusion_matrix': {
+                'TP': tp,
+                'FP': fp,
+                'TN': tn,
+                'FN': fn,
+            },
+            'metrics': {
+                'accuracy': float(accuracy),
+                'precision': float(precision),
+                'recall': float(recall),
+                'specificity': float(specificity),
+                'f1_score': float(f1),
+                'fpr': float(fpr),
+                'fnr': float(fnr),
+            },
+            'total_samples': int(len(y_true)),
+            'honest_samples': int(len(self.honest_scores)),
+            'attack_samples': int(len(attack_scores)),
+        }
+
+    def generate_detailed_report(self) -> str:
+        """
+        生成详细的文本报告
+
+        Returns:
+            报告字符串
+        """
+        lines = []
+        lines.append("=" * 80)
+        lines.append("TS-ZRV Stage 1 Separability Analysis Report")
+        lines.append("=" * 80)
+        lines.append("")
+
+        # 1. 基本统计信息
+        lines.append("1. BASIC STATISTICS")
+        lines.append("-" * 40)
+        stats = self.compute_statistics()
+        for label, stat in stats.items():
+            lines.append(f"\n{label}:")
+            lines.append(f"  Count: {stat['count']}")
+            lines.append(f"  Mean: {stat['mean']:.6f}")
+            lines.append(f"  Std: {stat['std']:.6f}")
+            lines.append(f"  Min: {stat['min']:.6f}")
+            lines.append(f"  Max: {stat['max']:.6f}")
+            lines.append(f"  Median: {stat['median']:.6f}")
+        lines.append("")
+
+        # 2. 分离间隙
+        lines.append("2. SEPARATION GAPS")
+        lines.append("-" * 40)
+        gaps = self.compute_separation_gap()
+        for label, gap in gaps.items():
+            status = "✓ GOOD" if gap > 0.1 else ("⚠ MARGINAL" if gap > 0 else "✗ OVERLAP")
+            lines.append(f"  {label}: {gap:.6f} [{status}]")
+        lines.append("")
+
+        # 3. 混淆矩阵和评价指标
+        lines.append("3. CONFUSION MATRICES & METRICS")
+        lines.append("-" * 40)
+        for attack_label in self.attack_scores.keys():
+            cm_result = self.compute_confusion_matrix(attack_label)
+            lines.append(f"\n{attack_label}:")
+            lines.append(f"  Threshold: {cm_result['threshold']:.6f}")
+            lines.append(f"  Confusion Matrix:")
+            lines.append(f"                 Predicted")
+            lines.append(f"                 Honest  Attack")
+            lines.append(f"    Actual Honest  {cm_result['confusion_matrix']['TP']:6d}  {cm_result['confusion_matrix']['FN']:6d}")
+            lines.append(f"          Attack   {cm_result['confusion_matrix']['FP']:6d}  {cm_result['confusion_matrix']['TN']:6d}")
+            lines.append(f"  Metrics:")
+            lines.append(f"    Accuracy:    {cm_result['metrics']['accuracy']:.4f}")
+            lines.append(f"    Precision:   {cm_result['metrics']['precision']:.4f}")
+            lines.append(f"    Recall:      {cm_result['metrics']['recall']:.4f}")
+            lines.append(f"    Specificity: {cm_result['metrics']['specificity']:.4f}")
+            lines.append(f"    F1 Score:    {cm_result['metrics']['f1_score']:.4f}")
+            lines.append(f"    FPR:         {cm_result['metrics']['fpr']:.6f}")
+            lines.append(f"    FNR:         {cm_result['metrics']['fnr']:.6f}")
+        lines.append("")
+
+        # 4. ROC-AUC
+        lines.append("4. ROC-AUC")
+        lines.append("-" * 40)
+        for attack_label in self.attack_scores.keys():
+            auc = self.compute_roc_auc(attack_label)
+            status = "Excellent" if auc > 0.95 else ("Good" if auc > 0.8 else "Fair")
+            lines.append(f"  {attack_label}: {auc:.6f} [{status}]")
+        lines.append("")
+
+        # 5. 最优阈值
+        lines.append("5. OPTIMAL THRESHOLDS (F1-optimized)")
+        lines.append("-" * 40)
+        for attack_label in self.attack_scores.keys():
+            optimal = self.find_optimal_threshold(attack_label, metric='f1')
+            lines.append(f"\n{attack_label}:")
+            lines.append(f"  Optimal Threshold: {optimal['optimal_threshold']:.6f}")
+            lines.append(f"  Best F1: {optimal['metrics_at_optimal']['F1']:.6f}")
+            lines.append(f"  TPR: {optimal['metrics_at_optimal']['TPR']:.6f}")
+            lines.append(f"  FPR: {optimal['metrics_at_optimal']['FPR']:.6f}")
+        lines.append("")
+
+        # 6. KS检验
+        lines.append("6. KOLMOGOROV-SMIRNOV TEST")
+        lines.append("-" * 40)
+        for attack_label in self.attack_scores.keys():
+            ks = self.kolmogorov_smirnov_test(attack_label)
+            lines.append(f"\n{attack_label}:")
+            lines.append(f"  KS Statistic: {ks['ks_statistic']:.6f}")
+            lines.append(f"  P-value: {ks['p_value']:.2e}")
+            lines.append(f"  Significant (α=0.05): {ks['significant_at_0.05']}")
+            lines.append(f"  Significant (α=0.01): {ks['significant_at_0.01']}")
+        lines.append("")
+
+        lines.append("=" * 80)
+        lines.append("End of Report")
+        lines.append("=" * 80)
+
+        return "\n".join(lines)
 
 
 def test_similarity_analyzer():

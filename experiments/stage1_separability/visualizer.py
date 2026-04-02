@@ -588,6 +588,94 @@ class ResultVisualizer:
 
             self._save_figure("layer_comparison_honest_vs_replay")
 
+    def plot_confusion_matrices(self, analyzer, attack_labels: List[str]):
+        """
+        绘制混淆矩阵热力图
+
+        Args:
+            analyzer: SeparabilityAnalyzer 实例
+            attack_labels: 攻击类型列表
+        """
+        import matplotlib.patches as mpatches
+
+        n_labels = len(attack_labels)
+        fig, axes = plt.subplots(1, n_labels, figsize=(6 * n_labels, 5))
+        if n_labels == 1:
+            axes = [axes]
+
+        for idx, attack_label in enumerate(attack_labels):
+            if attack_label not in analyzer.attack_scores:
+                continue
+
+            # 获取混淆矩阵
+            cm_result = analyzer.compute_confusion_matrix(attack_label)
+            if not cm_result:
+                continue
+
+            cm = np.array([
+                [cm_result['confusion_matrix']['TP'], cm_result['confusion_matrix']['FN']],
+                [cm_result['confusion_matrix']['FP'], cm_result['confusion_matrix']['TN']]
+            ])
+
+            ax = axes[idx]
+
+            # 绘制热力图
+            im = ax.imshow(cm, interpolation='nearest', cmap='Blues')
+            ax.figure.colorbar(im, ax=ax)
+
+            # 设置刻度和标签
+            classes = ['Honest', 'Attack']
+            ax.set(xticks=[0, 1],
+                   yticks=[0, 1],
+                   xticklabels=classes,
+                   yticklabels=classes,
+                   title=f'{attack_label}\n(Threshold: {cm_result["threshold"]:.4f})',
+                   ylabel='True label',
+                   xlabel='Predicted label')
+
+            # 在每个单元格中显示数值
+            thresh = cm.max() / 2.
+            for i in range(2):
+                for j in range(2):
+                    ax.text(j, i, format(cm[i, j], 'd'),
+                           ha="center", va="center",
+                           color="white" if cm[i, j] > thresh else "black",
+                           fontsize=20, fontweight='bold')
+
+            # 添加指标文本
+            metrics_text = (
+                f"Accuracy: {cm_result['metrics']['accuracy']:.4f}\n"
+                f"Precision: {cm_result['metrics']['precision']:.4f}\n"
+                f"Recall: {cm_result['metrics']['recall']:.4f}\n"
+                f"F1: {cm_result['metrics']['f1_score']:.4f}\n"
+                f"FPR: {cm_result['metrics']['fpr']:.6f}\n"
+                f"FNR: {cm_result['metrics']['fnr']:.6f}"
+            )
+            ax.text(1.05, 0.5, metrics_text,
+                   transform=ax.transAxes,
+                   fontsize=10, verticalalignment='center',
+                   bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        plt.tight_layout()
+        self._save_figure("confusion_matrices")
+
+    def save_detailed_report(self, analyzer, attack_labels: List[str], output_file: str = "detailed_report.txt"):
+        """
+        保存详细的文本报告
+
+        Args:
+            analyzer: SeparabilityAnalyzer 实例
+            attack_labels: 攻击类型列表
+            output_file: 输出文件名
+        """
+        report = analyzer.generate_detailed_report()
+
+        output_path = os.path.join(self.output_dir, output_file)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(report)
+
+        print(f"详细报告已保存: {output_path}")
+
     def generate_report(self, analysis_results: Dict, output_file: str = "report.json"):
         """
         生成分析报告
