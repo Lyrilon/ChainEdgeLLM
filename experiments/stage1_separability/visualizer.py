@@ -590,7 +590,7 @@ class ResultVisualizer:
 
     def plot_confusion_matrices(self, analyzer, attack_labels: List[str]):
         """
-        绘制混淆矩阵热力图
+        绘制混淆矩阵热力图 - 每个攻击类型单独保存到文件夹
 
         Args:
             analyzer: SeparabilityAnalyzer 实例
@@ -598,12 +598,11 @@ class ResultVisualizer:
         """
         import matplotlib.patches as mpatches
 
-        n_labels = len(attack_labels)
-        fig, axes = plt.subplots(1, n_labels, figsize=(6 * n_labels, 5))
-        if n_labels == 1:
-            axes = [axes]
+        # 创建混淆矩阵子文件夹
+        cm_dir = os.path.join(self.output_dir, "confusion_matrices")
+        os.makedirs(cm_dir, exist_ok=True)
 
-        for idx, attack_label in enumerate(attack_labels):
+        for attack_label in attack_labels:
             if attack_label not in analyzer.attack_scores:
                 continue
 
@@ -617,7 +616,8 @@ class ResultVisualizer:
                 [cm_result['confusion_matrix']['FP'], cm_result['confusion_matrix']['TN']]
             ])
 
-            ax = axes[idx]
+            # 创建单独的图片
+            fig, ax = plt.subplots(figsize=(8, 6))
 
             # 绘制热力图
             im = ax.imshow(cm, interpolation='nearest', cmap='Blues')
@@ -640,24 +640,36 @@ class ResultVisualizer:
                     ax.text(j, i, format(cm[i, j], 'd'),
                            ha="center", va="center",
                            color="white" if cm[i, j] > thresh else "black",
-                           fontsize=20, fontweight='bold')
+                           fontsize=24, fontweight='bold')
 
-            # 添加指标文本
+            # 添加指标文本框
             metrics_text = (
-                f"Accuracy: {cm_result['metrics']['accuracy']:.4f}\n"
-                f"Precision: {cm_result['metrics']['precision']:.4f}\n"
-                f"Recall: {cm_result['metrics']['recall']:.4f}\n"
-                f"F1: {cm_result['metrics']['f1_score']:.4f}\n"
-                f"FPR: {cm_result['metrics']['fpr']:.6f}\n"
-                f"FNR: {cm_result['metrics']['fnr']:.6f}"
+                f"Accuracy:    {cm_result['metrics']['accuracy']:.4f}\n"
+                f"Precision:   {cm_result['metrics']['precision']:.4f}\n"
+                f"Recall:      {cm_result['metrics']['recall']:.4f}\n"
+                f"F1 Score:    {cm_result['metrics']['f1_score']:.4f}\n"
+                f"Specificity: {cm_result['metrics']['specificity']:.4f}\n"
+                f"FPR:         {cm_result['metrics']['fpr']:.6f}\n"
+                f"FNR:         {cm_result['metrics']['fnr']:.6f}"
             )
-            ax.text(1.05, 0.5, metrics_text,
+            ax.text(1.25, 0.5, metrics_text,
                    transform=ax.transAxes,
-                   fontsize=10, verticalalignment='center',
+                   fontsize=11, verticalalignment='center',
+                   fontfamily='monospace',
                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
-        plt.tight_layout()
-        self._save_figure("confusion_matrices")
+            # 调整布局以容纳右侧文本
+            plt.tight_layout()
+            plt.subplots_adjust(right=0.75)
+
+            # 保存到子文件夹
+            safe_label = attack_label.replace(' ', '_').replace('/', '_')
+            save_path = os.path.join(cm_dir, f"cm_{safe_label}.png")
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"保存混淆矩阵: {save_path}")
+            plt.close()
+
+        print(f"所有混淆矩阵已保存到: {cm_dir}/")
 
     def save_detailed_report(self, analyzer, attack_labels: List[str], output_file: str = "detailed_report.txt"):
         """
