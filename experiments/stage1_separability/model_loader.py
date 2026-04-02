@@ -178,6 +178,9 @@ class HiddenStateExtractor:
     隐藏状态提取器，用于提取 Transformer 中间层输出
     """
 
+    # 类变量：记录是否已经打印过层数信息
+    _printed_layers = False
+
     def __init__(self, model: AutoModel, target_layers: list):
         """
         初始化提取器
@@ -249,10 +252,10 @@ class HiddenStateExtractor:
                 print(f"model.model 属性: {[k for k in dir(self.model.model) if not k.startswith('_')]}")
             raise ValueError(f"不支持的模型架构，无法找到 layers")
 
-        # 只在第一次注册时打印层数信息
-        if not hasattr(self, '_printed_layers'):
+        # 只在第一次注册时打印层数信息（使用类变量）
+        if not HiddenStateExtractor._printed_layers:
             print(f"找到 {len(layers)} 层 Transformer")
-            self._printed_layers = True
+            HiddenStateExtractor._printed_layers = True
 
         for layer_idx in self.target_layers:
             if layer_idx < len(layers):
