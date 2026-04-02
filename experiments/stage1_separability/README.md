@@ -70,14 +70,18 @@ stage1_separability/
 
 ## 模型和数据集 (ModelScope 魔塔)
 
-### 支持的模型
+### 支持的模型 (推荐新模型)
 
-| 模型 | ModelScope ID |
-|------|--------------|
-| GPT-2 | AI-ModelScope/gpt2 |
-| GPT-2 Medium | AI-ModelScope/gpt2-medium |
-| LLaMA-2-7B | modelscope/Llama-2-7b-ms |
-| Qwen2.5-1.5B | qwen/Qwen2.5-1.5B-Instruct |
+| 模型 | ModelScope ID | 参数 | 特点 |
+|------|--------------|------|------|
+| **Qwen2.5-1.5B** | qwen/Qwen2.5-1.5B-Instruct | 1.5B | 🔥 推荐，中文优化，效果好 |
+| Qwen2.5-3B | qwen/Qwen2.5-3B-Instruct | 3B | 更大版本 |
+| **LLaMA-3.2-1B** | LLM-Research/Llama-3.2-1B | 1B | 🔥 推荐，Meta最新架构 |
+| LLaMA-3.2-3B | LLM-Research/Llama-3.2-3B-Instruct | 3B | 更大版本 |
+| **Gemma-2B** | AI-ModelScope/gemma-2b-it | 2B | Google轻量模型 |
+| **Phi-3-mini** | LLM-Research/Phi-3-mini-4k-instruct | 3.8B | Microsoft小模型强性能 |
+| GPT-2 | AI-ModelScope/gpt2 | 117M | 经典小模型(过时) |
+| LLaMA-2-7B | modelscope/Llama-2-7b-ms | 7B | 较大，需更多资源 |
 
 ### 支持的数据集
 

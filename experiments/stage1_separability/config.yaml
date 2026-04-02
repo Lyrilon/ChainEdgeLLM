@@ -2,14 +2,20 @@
 # TS-ZRV Causal Binding Check 可分性实验配置
 
 # 模型配置 (使用 ModelScope 魔塔下载)
+# 推荐新模型 (轻量级、下载快):
+#   - qwen2.5-1.5b-instruct: 阿里云Qwen2.5, 1.5B参数, 效果优秀
+#   - llama3.2-1b: Meta LLaMA 3.2, 1B参数, 最新架构
+#   - gemma-2b: Google Gemma 2B, 轻量化
+#   - phi3-mini: Microsoft Phi-3, 小模型强性能
 model:
-  name: "gpt2"  # 可选: gpt2, gpt2-medium, llama2-7b, qwen2.5-1.5b-instruct
+  name: "qwen2.5-1.5b-instruct"  # 默认使用Qwen2.5
   # ModelScope 模型 ID
-  modelscope_id: "AI-ModelScope/gpt2"
+  modelscope_id: "qwen/Qwen2.5-1.5B-Instruct"
   # 要测试的层索引 (Transformer layers)
-  target_layers: [4, 8, 12]  # GPT-2有12层，测试不同位置
-  # 隐藏层维度 (GPT-2 base: 768)
-  hidden_dim: 768
+  # Qwen2.5-1.5B有28层，测试不同位置
+  target_layers: [7, 14, 21]
+  # 隐藏层维度 (Qwen2.5-1.5B: 1536)
+  hidden_dim: 1536
   # 最大序列长度
   max_length: 256
 

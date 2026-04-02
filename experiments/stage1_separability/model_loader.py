@@ -19,17 +19,35 @@ class ModelLoader:
     模型加载器，支持从 ModelScope (魔塔) 下载和加载模型
     """
 
-    # ModelScope 模型映射表
+    # ModelScope 模型映射表 (更新模型列表)
     MODELSCOPE_MAP = {
+        # === 新模型 (推荐) ===
+        # Qwen2.5 系列 (阿里云, 支持中英文, 效果优秀)
+        "qwen2.5-1.5b-instruct": "qwen/Qwen2.5-1.5B-Instruct",
+        "qwen2.5-3b-instruct": "qwen/Qwen2.5-3B-Instruct",
+        "qwen2.5-7b-instruct": "qwen/Qwen2.5-7B-Instruct",
+
+        # LLaMA 3.x 系列 (Meta, 最新架构)
+        "llama3.2-1b": "LLM-Research/Llama-3.2-1B",
+        "llama3.2-3b": "LLM-Research/Llama-3.2-3B-Instruct",
+        "llama3.1-8b": "LLM-Research/Llama-3.1-8B-Instruct",
+
+        # Gemma 系列 (Google, 轻量化)
+        "gemma-2b": "AI-ModelScope/gemma-2b-it",
+        "gemma-2b-v2": "AI-ModelScope/gemma-2-2b-it",
+        "gemma-4b": "AI-ModelScope/gemma-2-4b-it",
+
+        # Phi-3 系列 (Microsoft, 小模型强性能)
+        "phi3-mini": "LLM-Research/Phi-3-mini-4k-instruct",
+        "phi3.5-mini": "LLM-Research/Phi-3.5-mini-instruct",
+
+        # === 经典模型 ===
         "gpt2": "AI-ModelScope/gpt2",
         "gpt2-medium": "AI-ModelScope/gpt2-medium",
-        "gpt2-large": "AI-ModelScope/gpt2-large",
         "llama2-7b": "modelscope/Llama-2-7b-ms",
-        "llama2-7b-chat": "modelscope/Llama-2-7b-chat-ms",
-        "qwen2.5-1.5b-instruct": "qwen/Qwen2.5-1.5B-Instruct",
-        "qwen2.5-7b-instruct": "qwen/Qwen2.5-7B-Instruct",
+
+        # BERT系列 (用于对比)
         "bert-base-uncased": "AI-ModelScope/bert-base-uncased",
-        "roberta-base": "AI-ModelScope/roberta-base",
     }
 
     def __init__(self, model_name: str, cache_dir: str = "./data/cache", device: str = "auto"):
