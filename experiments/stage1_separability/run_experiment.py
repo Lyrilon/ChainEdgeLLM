@@ -29,6 +29,7 @@ from similarity_analyzer import (
     CosineSimilarityCalculator, SeparabilityAnalyzer, SimilarityResult
 )
 from visualizer import ResultVisualizer
+from sample_cache import SampleCache  # 样本缓存
 
 # 设置日志
 logging.basicConfig(
@@ -133,8 +134,44 @@ def run_experiment(config: dict, quick_test: bool = False) -> dict:
     logger.info("步骤3: 生成诚实样本")
     logger.info("=" * 50)
 
-    honest_generator = HonestSampleGenerator(model, tokenizer, model_loader.device)
-    honest_samples = honest_generator.generate(texts, target_layers)
+    # 初始化样本缓存
+    cache_config = config['experiment'].get('sample_cache', {})
+    cache_enabled = cache_config.get('enabled', True)
+    cache_dir = cache_config.get('cache_dir', './data/sample_cache')
+    cache_key = cache_config.get('cache_key', 'auto')
+
+    sample_cache = SampleCache(cache_dir)
+    honest_samples = None
+
+    # 尝试从缓存加载
+    if cache_enabled and not quick_test:
+        honest_samples = sample_cache.load(
+            model_name=model_config['name'],
+            num_samples=num_samples,
+            target_layers=target_layers,
+            seed=config['experiment']['seed'],
+            dataset_name=config['dataset']['name'],
+            cache_key=cache_key
+        )
+
+    if honest_samples is not None:
+        logger.info("✓ 从缓存加载诚实样本")
+    else:
+        logger.info("缓存未命中，生成新的诚实样本...")
+        honest_generator = HonestSampleGenerator(model, tokenizer, model_loader.device)
+        honest_samples = honest_generator.generate(texts, target_layers)
+
+        # 保存到缓存
+        if cache_enabled and not quick_test:
+            sample_cache.save(
+                honest_samples,
+                model_name=model_config['name'],
+                num_samples=num_samples,
+                target_layers=target_layers,
+                seed=config['experiment']['seed'],
+                dataset_name=config['dataset']['name'],
+                cache_key=cache_key
+            )
 
     # 保存诚实样本用于后续攻击生成
     logger.info(f"生成了 {len(honest_samples)} 个诚实样本")
