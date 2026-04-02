@@ -1,0 +1,74 @@
+# Stage 1 Separability Experiment Configuration
+# TS-ZRV Causal Binding Check 可分性实验配置
+
+# 模型配置 (使用 ModelScope 魔塔下载)
+model:
+  name: "gpt2"  # 可选: gpt2, gpt2-medium, llama2-7b, qwen2.5-1.5b-instruct
+  # ModelScope 模型 ID
+  modelscope_id: "AI-ModelScope/gpt2"
+  # 要测试的层索引 (Transformer layers)
+  target_layers: [4, 8, 12]  # GPT-2有12层，测试不同位置
+  # 隐藏层维度 (GPT-2 base: 768)
+  hidden_dim: 768
+  # 最大序列长度
+  max_length: 256
+
+# 数据集配置 (使用 ModelScope 魔塔下载)
+dataset:
+  name: "wikitext"
+  # ModelScope 数据集 ID
+  modelscope_id: "AI-ModelScope/wikitext-2-raw-v1"
+  subset: "train"
+  # 采样数量
+  num_samples: 2000
+  # 序列长度列表
+  seq_lengths: [128, 256]
+
+# 攻击类型配置
+attacks:
+  # 随机噪声攻击 (Byzantine Failure)
+  random_noise:
+    enabled: true
+    noise_levels: [0.1, 0.5, 1.0, 2.0, 5.0]  # 标准差 σ
+    distribution: "gaussian"  # gaussian, uniform
+
+  # 重放攻击 (Replay Attack)
+  replay_attack:
+    enabled: true
+    replay_types:
+      - "cross_sequence_same_layer"    # 不同序列，同层
+      - "cross_sequence_cross_layer"   # 不同序列，不同层
+      - "same_sequence_cross_layer"    # 同序列，不同层
+    # 重放池大小
+    replay_pool_size: 500
+
+  # 其他攻击 (用于 Stage 2 测试，但这里也记录)
+  layer_skipping:
+    enabled: false  # Stage 1 无法检测，留给 Stage 2
+
+  precision_downgrade:
+    enabled: false  # Stage 1 无法检测，留给 Stage 2
+
+# 实验参数
+experiment:
+  # 随机种子
+  seed: 42
+  # 批次大小
+  batch_size: 16
+  # 设备 (auto, cpu, cuda)
+  device: "auto"
+  # 输出目录
+  output_dir: "./results"
+  # 缓存目录
+  cache_dir: "./data/cache"
+
+# 分析参数
+analysis:
+  # 阈值搜索范围
+  threshold_range: [0.0, 1.0]
+  threshold_step: 0.01
+  # 置信区间
+  confidence_level: 0.95
+  # 可视化设置
+  plot_format: "png"
+  plot_dpi: 300
