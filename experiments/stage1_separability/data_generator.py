@@ -418,6 +418,11 @@ class DatasetLoader:
             logger.info(f"成功加载 {len(texts)} 条文本")
             return texts
 
+        except ImportError as e:
+            logger.error(f"缺少依赖: {e}")
+            logger.info("请运行: pip install addict")
+            logger.info("使用备用数据...")
+            return self._load_fallback(num_samples)
         except Exception as e:
             logger.error(f"从 ModelScope 加载失败: {e}")
             logger.info("使用备用数据...")
