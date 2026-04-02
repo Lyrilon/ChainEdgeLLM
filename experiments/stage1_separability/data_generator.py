@@ -37,6 +37,53 @@ class HonestSampleGenerator:
         self.tokenizer = tokenizer
         self.device = device
 
+    def _get_embedding(self, input_ids: torch.Tensor) -> torch.Tensor:
+        """
+        获取输入的 embedding，支持多种模型架构
+
+        Args:
+            input_ids: 输入 token IDs
+
+        Returns:
+            embedding 张量
+        """
+        # 1. GPT-2 风格
+        if hasattr(self.model, 'transformer') and hasattr(self.model.transformer, 'wte'):
+            return self.model.transformer.wte(input_ids)
+
+        # 2. Qwen2 / LLaMA / Mistral / Gemma 风格
+        if hasattr(self.model, 'model'):
+            # 尝试多种可能的 embedding 属性
+            if hasattr(self.model.model, 'embed_tokens'):
+                return self.model.model.embed_tokens(input_ids)
+            if hasattr(self.model.model, 'embeddings'):
+                return self.model.model.embeddings(input_ids)
+            if hasattr(self.model.model, 'word_embeddings'):
+                return self.model.model.word_embeddings(input_ids)
+            # 尝试多层嵌套
+            if hasattr(self.model.model, 'model'):
+                if hasattr(self.model.model.model, 'embed_tokens'):
+                    return self.model.model.model.embed_tokens(input_ids)
+
+        # 3. BERT / RoBERTa 风格
+        if hasattr(self.model, 'embeddings'):
+            return self.model.embeddings(input_ids)
+
+        # 4. 通用查找
+        for attr_name in ['embed_tokens', 'embeddings', 'word_embeddings', 'wte', 'embedding']:
+            if hasattr(self.model, attr_name):
+                embed_layer = getattr(self.model, attr_name)
+                if callable(embed_layer):
+                    return embed_layer(input_ids)
+                return embed_layer(input_ids)
+
+        # 5. 最后的尝试：使用模型的 get_input_embeddings 方法
+        if hasattr(self.model, 'get_input_embeddings'):
+            embed_layer = self.model.get_input_embeddings()
+            return embed_layer(input_ids)
+
+        raise ValueError(f"无法找到模型的 embedding 层，请检查模型架构")
+
     def generate(self, texts: List[str], target_layers: List[int]) -> List[Sample]:
         """
         生成诚实样本
@@ -79,12 +126,7 @@ class HonestSampleGenerator:
                 # 获取前一层输出 (对于第0层，使用 embedding)
                 if layer_idx == 0:
                     with torch.no_grad():
-                        if hasattr(self.model, 'transformer'):
-                            x_prev = self.model.transformer.wte(inputs['input_ids']).cpu().numpy()
-                        elif hasattr(self.model, 'model'):
-                            x_prev = self.model.model.embed_tokens(inputs['input_ids']).cpu().numpy()
-                        else:
-                            x_prev = x_curr  # 回退
+                        x_prev = self._get_embedding(inputs['input_ids']).cpu().numpy()
                 else:
                     # 需要重新提取前一层的输出
                     prev_extractor = HiddenStateExtractor(self.model, [layer_idx - 1])

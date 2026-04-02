@@ -202,18 +202,54 @@ class HiddenStateExtractor:
                     self.hidden_states[layer_idx] = output.detach().cpu()
             return hook
 
-        # 获取模型的 Transformer 层
-        if hasattr(self.model, 'transformer'):
-            # GPT-2 风格
+        # 获取模型的 Transformer 层 (支持多种架构)
+        layers = None
+
+        # 1. GPT-2 风格
+        if hasattr(self.model, 'transformer') and hasattr(self.model.transformer, 'h'):
             layers = self.model.transformer.h
+
+        # 2. Qwen2 / LLaMA / Mistral 风格
         elif hasattr(self.model, 'model') and hasattr(self.model.model, 'layers'):
-            # LLaMA 风格
             layers = self.model.model.layers
+
+        # 3. BERT / RoBERTa 风格
         elif hasattr(self.model, 'encoder') and hasattr(self.model.encoder, 'layer'):
-            # BERT 风格
             layers = self.model.encoder.layer
-        else:
-            raise ValueError("不支持的模型架构")
+
+        # 4. Gemma 风格
+        elif hasattr(self.model, 'model') and hasattr(self.model.model, 'model'):
+            if hasattr(self.model.model.model, 'layers'):
+                layers = self.model.model.model.layers
+
+        # 5. Phi 风格
+        elif hasattr(self.model, 'model') and hasattr(self.model.model, 'model'):
+            if hasattr(self.model.model.model, 'layers'):
+                layers = self.model.model.model.layers
+
+        # 6. 通用查找: 查找包含 layers 或 h 的属性
+        if layers is None:
+            for attr_name in ['layers', 'h', 'encoder', 'decoder']:
+                if hasattr(self.model, attr_name):
+                    attr = getattr(self.model, attr_name)
+                    if isinstance(attr, (list, torch.nn.ModuleList)):
+                        layers = attr
+                        break
+                    elif hasattr(attr, 'layer'):
+                        layers = attr.layer
+                        break
+                    elif hasattr(attr, 'layers'):
+                        layers = attr.layers
+                        break
+
+        if layers is None:
+            # 打印调试信息
+            print(f"模型属性: {[k for k in dir(self.model) if not k.startswith('_')]}")
+            if hasattr(self.model, 'model'):
+                print(f"model.model 属性: {[k for k in dir(self.model.model) if not k.startswith('_')]}")
+            raise ValueError(f"不支持的模型架构，无法找到 layers")
+
+        print(f"找到 {len(layers)} 层 Transformer")
 
         for layer_idx in self.target_layers:
             if layer_idx < len(layers):
