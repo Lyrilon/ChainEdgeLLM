@@ -37,7 +37,7 @@ class ResultVisualizer:
 
     def plot_distribution_histogram(self, results: List, layer_idx: int = None):
         """
-        绘制分布直方图 - 使用双轴展示所有数据
+        绘制分布直方图 - 左图：honest + random_noise，右图：honest + replay
 
         Args:
             results: SimilarityResult 列表
@@ -57,36 +57,56 @@ class ResultVisualizer:
             'precision_downgrade': '#9b59b6',  # 紫色
         }
 
-        # 创建两个子图：左图展示完整范围，右图展示诚实样本细节
+        honest_data = data.get('honest', [])
+        random_noise_labels = [k for k in data.keys() if k.startswith('random_noise')]
+        replay_labels = [k for k in data.keys() if k.startswith('replay')]
+
+        # 创建两个子图
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
 
-        # 左图：完整范围（展示攻击样本）
-        for label, scores in data.items():
-            color = colors.get(label.split('_')[0], None)
-            ax1.hist(scores, bins=50, alpha=0.6, label=label, color=color, density=True)
+        # ========== 左图：honest + random_noise ==========
+        if honest_data:
+            ax1.hist(honest_data, bins=50, alpha=0.7, color=colors['honest'],
+                     label=f'honest (n={len(honest_data)})', density=True)
 
-        ax1.set_xlabel('Cosine Similarity (Full Range)', fontsize=12)
+        for label in sorted(random_noise_labels):
+            color = colors.get('random_noise', None)
+            ax1.hist(data[label], bins=50, alpha=0.6, label=label, color=color, density=True)
+
+        ax1.set_xlabel('Cosine Similarity', fontsize=12)
         ax1.set_ylabel('Density', fontsize=12)
-        ax1.set_title('Full Distribution View', fontsize=14)
+        ax1.set_title('Honest vs Random Noise', fontsize=14)
         ax1.legend()
         ax1.grid(True, alpha=0.3)
-        ax1.set_xlim(-0.2, 1.1)  # 固定范围以展示所有数据
 
-        # 右图：诚实样本细节（放大视图）
-        if 'honest' in data:
-            honest_scores = data['honest']
-            ax2.hist(honest_scores, bins=50, alpha=0.7, color='#2ecc71',
-                     label=f'honest (n={len(honest_scores)})', density=True)
-            ax2.set_xlabel('Cosine Similarity (Honest Detail)', fontsize=12)
-            ax2.set_ylabel('Density', fontsize=12)
+        # 自适应 x 轴范围
+        all_noise_data = [v for l in random_noise_labels for v in data[l]] + honest_data
+        if all_noise_data:
+            x_min, x_max = min(all_noise_data), max(all_noise_data)
+            margin = (x_max - x_min) * 0.1
+            ax1.set_xlim(x_min - margin, x_max + margin)
 
-            # 自适应范围：均值 ± 5倍标准差
-            mean_val = np.mean(honest_scores)
-            std_val = np.std(honest_scores)
-            ax2.set_xlim(max(-0.1, mean_val - 5*std_val), min(1.05, mean_val + 5*std_val))
-            ax2.set_title(f'Honest Samples Detail (μ={mean_val:.4f}, σ={std_val:.4f})', fontsize=14)
-            ax2.legend()
-            ax2.grid(True, alpha=0.3)
+        # ========== 右图：honest + replay ==========
+        if honest_data:
+            ax2.hist(honest_data, bins=50, alpha=0.7, color=colors['honest'],
+                     label=f'honest (n={len(honest_data)})', density=True)
+
+        for label in sorted(replay_labels):
+            color = colors.get('replay', None)
+            ax2.hist(data[label], bins=50, alpha=0.6, label=label, color=color, density=True)
+
+        ax2.set_xlabel('Cosine Similarity', fontsize=12)
+        ax2.set_ylabel('Density', fontsize=12)
+        ax2.set_title('Honest vs Replay', fontsize=14)
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+
+        # 自适应 x 轴范围 - 放大显示 honest 和 replay 的差异
+        all_replay_data = [v for l in replay_labels for v in data[l]] + honest_data
+        if all_replay_data:
+            x_min, x_max = min(all_replay_data), max(all_replay_data)
+            margin = (x_max - x_min) * 0.1
+            ax2.set_xlim(x_min - margin, x_max + margin)
 
         title = f'Distribution of Cosine Similarities'
         if layer_idx is not None:
@@ -98,7 +118,7 @@ class ResultVisualizer:
 
     def plot_box_violin(self, results: List, layer_idx: int = None):
         """
-        绘制箱线图和小提琴图
+        绘制箱线图和小提琴图 - 分开画图：honest+random_noise 和 honest+replay 各一张
 
         Args:
             results: SimilarityResult 列表
@@ -110,37 +130,108 @@ class ResultVisualizer:
             if layer_idx is None or r.layer_idx == layer_idx:
                 data[r.label].append(r.cosine_similarity)
 
-        # 准备数据
-        labels = []
-        values = []
-        for label in sorted(data.keys(), key=lambda x: (x != 'honest', x)):
-            labels.append(label)
-            values.append(data[label])
+        # 分类标签
+        honest_data = data.get('honest', [])
+        random_noise_labels = [k for k in data.keys() if k.startswith('random_noise')]
+        replay_labels = [k for k in data.keys() if k.startswith('replay')]
 
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+        colors = {
+            'honest': '#2ecc71',
+            'random_noise': '#e74c3c',
+            'replay': '#3498db',
+        }
 
-        # 箱线图
-        bp = ax1.boxplot(values, labels=labels, patch_artist=True)
-        colors = plt.cm.Set3(np.linspace(0, 1, len(labels)))
-        for patch, color in zip(bp['boxes'], colors):
-            patch.set_facecolor(color)
-        ax1.set_ylabel('Cosine Similarity', fontsize=12)
-        ax1.set_title('Box Plot', fontsize=14)
-        ax1.grid(True, alpha=0.3)
-        plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45, ha='right')
+        # ========== 图1: honest + random_noise 箱型图 ==========
+        if honest_data and random_noise_labels:
+            fig, ax = plt.subplots(figsize=(10, 6))
 
-        # 小提琴图
-        parts = ax2.violinplot(values, showmeans=True, showmedians=True)
-        ax2.set_xticks(range(1, len(labels) + 1))
-        ax2.set_xticklabels(labels)
-        ax2.set_ylabel('Cosine Similarity', fontsize=12)
-        ax2.set_title('Violin Plot', fontsize=14)
-        ax2.grid(True, alpha=0.3)
-        plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right')
+            labels = ['honest'] + sorted(random_noise_labels)
+            values = [data[l] for l in labels]
+            label_colors = [colors.get(l.split('_')[0], '#95a5a6') for l in labels]
 
-        plt.tight_layout()
-        name = f"box_violin_layer{layer_idx if layer_idx else 'all'}"
-        self._save_figure(name)
+            bp = ax.boxplot(values, labels=labels, patch_artist=True)
+            for patch, color in zip(bp['boxes'], label_colors):
+                patch.set_facecolor(color)
+                patch.set_alpha(0.7)
+
+            ax.set_ylabel('Cosine Similarity', fontsize=12)
+            ax.set_title('Box Plot: Honest vs Random Noise', fontsize=14)
+            ax.grid(True, alpha=0.3)
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+            name = f"box_honest_vs_noise_layer{layer_idx if layer_idx else 'all'}"
+            self._save_figure(name)
+
+        # ========== 图2: honest + replay 箱型图 ==========
+        if honest_data and replay_labels:
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            labels = ['honest'] + sorted(replay_labels)
+            values = [data[l] for l in labels]
+            label_colors = [colors.get(l.split('_')[0], '#95a5a6') for l in labels]
+
+            bp = ax.boxplot(values, labels=labels, patch_artist=True)
+            for patch, color in zip(bp['boxes'], label_colors):
+                patch.set_facecolor(color)
+                patch.set_alpha(0.7)
+
+            ax.set_ylabel('Cosine Similarity', fontsize=12)
+            ax.set_title('Box Plot: Honest vs Replay', fontsize=14)
+            ax.grid(True, alpha=0.3)
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+            # 设置 y 轴范围以更好显示 honest 和 replay 的差异
+            all_values = [v for sublist in values for v in sublist]
+            if all_values:
+                y_min, y_max = min(all_values), max(all_values)
+                margin = (y_max - y_min) * 0.1
+                ax.set_ylim(y_min - margin, y_max + margin)
+
+            name = f"box_honest_vs_replay_layer{layer_idx if layer_idx else 'all'}"
+            self._save_figure(name)
+
+        # ========== 图3: honest + random_noise 小提琴图 ==========
+        if honest_data and random_noise_labels:
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            labels = ['honest'] + sorted(random_noise_labels)
+            values = [data[l] for l in labels]
+
+            parts = ax.violinplot(values, showmeans=True, showmedians=True)
+            ax.set_xticks(range(1, len(labels) + 1))
+            ax.set_xticklabels(labels)
+            ax.set_ylabel('Cosine Similarity', fontsize=12)
+            ax.set_title('Violin Plot: Honest vs Random Noise', fontsize=14)
+            ax.grid(True, alpha=0.3)
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+            name = f"violin_honest_vs_noise_layer{layer_idx if layer_idx else 'all'}"
+            self._save_figure(name)
+
+        # ========== 图4: honest + replay 小提琴图 ==========
+        if honest_data and replay_labels:
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            labels = ['honest'] + sorted(replay_labels)
+            values = [data[l] for l in labels]
+
+            parts = ax.violinplot(values, showmeans=True, showmedians=True)
+            ax.set_xticks(range(1, len(labels) + 1))
+            ax.set_xticklabels(labels)
+            ax.set_ylabel('Cosine Similarity', fontsize=12)
+            ax.set_title('Violin Plot: Honest vs Replay', fontsize=14)
+            ax.grid(True, alpha=0.3)
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+            # 设置 y 轴范围以更好显示 honest 和 replay 的差异
+            all_values = [v for sublist in values for v in sublist]
+            if all_values:
+                y_min, y_max = min(all_values), max(all_values)
+                margin = (y_max - y_min) * 0.1
+                ax.set_ylim(y_min - margin, y_max + margin)
+
+            name = f"violin_honest_vs_replay_layer{layer_idx if layer_idx else 'all'}"
+            self._save_figure(name)
 
     def plot_roc_curve(self, analyzer, attack_labels: List[str]):
         """
@@ -381,7 +472,7 @@ class ResultVisualizer:
 
     def plot_layer_comparison(self, results: List):
         """
-        比较不同层的性能
+        比较不同层的性能 - 分开画图：honest+random_noise 和 honest+replay
 
         Args:
             results: SimilarityResult 列表
@@ -392,37 +483,87 @@ class ResultVisualizer:
             data[r.layer_idx][r.label].append(r.cosine_similarity)
 
         layers = sorted(data.keys())
-        labels = set()
-        for layer_data in data.values():
-            labels.update(layer_data.keys())
-        labels = sorted(labels, key=lambda x: (x != 'honest', x))
+        honest_label = 'honest'
+        random_noise_labels = sorted([l for l in data[layers[0]].keys() if l.startswith('random_noise')])
+        replay_labels = sorted([l for l in data[layers[0]].keys() if l.startswith('replay')])
 
-        # 准备绘图数据
-        fig, ax = plt.subplots(figsize=(14, 8))
+        colors = {
+            'honest': '#2ecc71',
+            'random_noise': '#e74c3c',
+            'replay': '#3498db',
+        }
 
-        x = np.arange(len(layers))
-        width = 0.8 / len(labels)
+        # ========== 图1: honest + random_noise ==========
+        if honest_label and random_noise_labels:
+            fig, ax = plt.subplots(figsize=(12, 6))
 
-        for i, label in enumerate(labels):
-            means = []
-            stds = []
-            for layer in layers:
-                scores = data[layer].get(label, [])
-                means.append(np.mean(scores) if scores else 0)
-                stds.append(np.std(scores) if scores else 0)
+            labels_to_plot = [honest_label] + random_noise_labels
+            x = np.arange(len(layers))
+            width = 0.8 / len(labels_to_plot)
 
-            offset = (i - len(labels) / 2) * width + width / 2
-            ax.bar(x + offset, means, width, yerr=stds, label=label, alpha=0.8)
+            for i, label in enumerate(labels_to_plot):
+                means = []
+                stds = []
+                for layer in layers:
+                    scores = data[layer].get(label, [])
+                    means.append(np.mean(scores) if scores else 0)
+                    stds.append(np.std(scores) if scores else 0)
 
-        ax.set_xlabel('Layer Index', fontsize=12)
-        ax.set_ylabel('Cosine Similarity', fontsize=12)
-        ax.set_title('Mean Cosine Similarity by Layer', fontsize=14)
-        ax.set_xticks(x)
-        ax.set_xticklabels(layers)
-        ax.legend()
-        ax.grid(True, alpha=0.3, axis='y')
+                offset = (i - len(labels_to_plot) / 2) * width + width / 2
+                color = colors.get(label.split('_')[0], '#95a5a6')
+                ax.bar(x + offset, means, width, yerr=stds, label=label, color=color, alpha=0.8)
 
-        self._save_figure("layer_comparison")
+            ax.set_xlabel('Layer Index', fontsize=12)
+            ax.set_ylabel('Cosine Similarity', fontsize=12)
+            ax.set_title('Mean Cosine Similarity by Layer: Honest vs Random Noise', fontsize=14)
+            ax.set_xticks(x)
+            ax.set_xticklabels(layers)
+            ax.legend()
+            ax.grid(True, alpha=0.3, axis='y')
+
+            self._save_figure("layer_comparison_honest_vs_noise")
+
+        # ========== 图2: honest + replay ==========
+        if honest_label and replay_labels:
+            fig, ax = plt.subplots(figsize=(12, 6))
+
+            labels_to_plot = [honest_label] + replay_labels
+            x = np.arange(len(layers))
+            width = 0.8 / len(labels_to_plot)
+
+            for i, label in enumerate(labels_to_plot):
+                means = []
+                stds = []
+                for layer in layers:
+                    scores = data[layer].get(label, [])
+                    means.append(np.mean(scores) if scores else 0)
+                    stds.append(np.std(scores) if scores else 0)
+
+                offset = (i - len(labels_to_plot) / 2) * width + width / 2
+                color = colors.get(label.split('_')[0], '#95a5a6')
+                ax.bar(x + offset, means, width, yerr=stds, label=label, color=color, alpha=0.8)
+
+            ax.set_xlabel('Layer Index', fontsize=12)
+            ax.set_ylabel('Cosine Similarity', fontsize=12)
+            ax.set_title('Mean Cosine Similarity by Layer: Honest vs Replay', fontsize=14)
+            ax.set_xticks(x)
+            ax.set_xticklabels(layers)
+            ax.legend()
+            ax.grid(True, alpha=0.3, axis='y')
+
+            # 自适应 y 轴范围
+            all_means = []
+            for label in labels_to_plot:
+                for layer in layers:
+                    scores = data[layer].get(label, [])
+                    if scores:
+                        all_means.append(np.mean(scores))
+            if all_means:
+                y_min, y_max = min(all_means), max(all_means)
+                margin = (y_max - y_min) * 0.2
+                ax.set_ylim(y_min - margin, y_max + margin)
+
+            self._save_figure("layer_comparison_honest_vs_replay")
 
     def generate_report(self, analysis_results: Dict, output_file: str = "report.json"):
         """
