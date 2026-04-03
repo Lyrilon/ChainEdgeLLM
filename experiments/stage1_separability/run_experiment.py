@@ -58,7 +58,7 @@ def set_seed(seed: int):
         torch.cuda.manual_seed_all(seed)
 
 
-def run_experiment(config: dict, quick_test: bool = False) -> dict:
+def run_experiment(config: dict, quick_test: bool = False, full_layers: bool = False) -> dict:
     """
     运行完整实验
 
@@ -110,7 +110,7 @@ def run_experiment(config: dict, quick_test: bool = False) -> dict:
         replay_types = config['attacks']['replay_attack']['replay_types']
 
     # --full 参数: 测试所有层
-    if args.full:
+    if full_layers:
         target_layers = list(range(model_info['num_layers']))
         logger.info(f"【全层测试模式】测试所有 {model_info['num_layers']} 层")
 
@@ -461,7 +461,7 @@ def main():
 
     # 运行实验
     try:
-        results = run_experiment(config, quick_test=args.quick_test)
+        results = run_experiment(config, quick_test=args.quick_test, full_layers=args.full)
         print_summary(results)
         logger.info("实验完成!")
     except Exception as e:
