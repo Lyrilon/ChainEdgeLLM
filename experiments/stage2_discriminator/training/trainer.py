@@ -26,8 +26,8 @@ class DiscriminatorTrainer:
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.AdamW(
             model.parameters(),
-            lr=config['learning_rate'],
-            weight_decay=config['weight_decay']
+            lr=float(config['learning_rate']),
+            weight_decay=float(config['weight_decay'])
         )
 
         self.best_val_loss = float('inf')
