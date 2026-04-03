@@ -1,0 +1,337 @@
+================================================================================
+TS-ZRV Stage 1 Separability Analysis Report
+================================================================================
+
+1. BASIC STATISTICS
+----------------------------------------
+
+honest:
+  Count: 6000
+  Mean: 0.994388
+  Std: 0.006906
+  Min: 0.962017
+  Max: 0.999780
+  Median: 0.997654
+
+random_noise_sigma_0.1:
+  Count: 6000
+  Mean: -0.000114
+  Std: 0.025430
+  Min: -0.102153
+  Max: 0.112103
+  Median: 0.000463
+
+random_noise_sigma_0.5:
+  Count: 6000
+  Mean: 0.000084
+  Std: 0.025497
+  Min: -0.087300
+  Max: 0.085173
+  Median: -0.000169
+
+random_noise_sigma_1.0:
+  Count: 6000
+  Mean: -0.000655
+  Std: 0.025582
+  Min: -0.089490
+  Max: 0.096857
+  Median: -0.000713
+
+random_noise_sigma_2.0:
+  Count: 6000
+  Mean: -0.000066
+  Std: 0.025545
+  Min: -0.097586
+  Max: 0.107266
+  Median: 0.000204
+
+random_noise_sigma_5.0:
+  Count: 6000
+  Mean: 0.000255
+  Std: 0.025197
+  Min: -0.101235
+  Max: 0.089955
+  Median: 0.000508
+
+replay_cross_sequence_same_layer:
+  Count: 6000
+  Mean: 0.934122
+  Std: 0.058793
+  Min: 0.670221
+  Max: 0.999254
+  Median: 0.949208
+
+replay_cross_sequence_cross_layer:
+  Count: 6000
+  Mean: 0.915124
+  Std: 0.073774
+  Min: 0.638223
+  Max: 0.998685
+  Median: 0.937364
+
+replay_same_sequence_cross_layer:
+  Count: 961
+  Mean: 0.961269
+  Std: 0.037741
+  Min: 0.830596
+  Max: 0.998823
+  Median: 0.977293
+
+2. SEPARATION GAPS
+----------------------------------------
+  random_noise_sigma_0.1: 0.849914 [✓ GOOD]
+  random_noise_sigma_0.5: 0.876844 [✓ GOOD]
+  random_noise_sigma_1.0: 0.865160 [✓ GOOD]
+  random_noise_sigma_2.0: 0.854751 [✓ GOOD]
+  random_noise_sigma_5.0: 0.872062 [✓ GOOD]
+  replay_cross_sequence_same_layer: -0.037237 [✗ OVERLAP]
+  replay_cross_sequence_cross_layer: -0.036668 [✗ OVERLAP]
+  replay_same_sequence_cross_layer: -0.036806 [✗ OVERLAP]
+
+3. CONFUSION MATRICES & METRICS
+----------------------------------------
+
+random_noise_sigma_0.1:
+  Threshold: 0.112195
+  Confusion Matrix:
+                 Predicted
+                 Honest  Attack
+    Actual Honest    6000       0
+          Attack        0    6000
+  Metrics:
+    Accuracy:    1.0000
+    Precision:   1.0000
+    Recall:      1.0000
+    Specificity: 1.0000
+    F1 Score:    1.0000
+    FPR:         0.000000
+    FNR:         0.000000
+
+random_noise_sigma_0.5:
+  Threshold: 0.085237
+  Confusion Matrix:
+                 Predicted
+                 Honest  Attack
+    Actual Honest    6000       0
+          Attack        0    6000
+  Metrics:
+    Accuracy:    1.0000
+    Precision:   1.0000
+    Recall:      1.0000
+    Specificity: 1.0000
+    F1 Score:    1.0000
+    FPR:         0.000000
+    FNR:         0.000000
+
+random_noise_sigma_1.0:
+  Threshold: 0.096903
+  Confusion Matrix:
+                 Predicted
+                 Honest  Attack
+    Actual Honest    6000       0
+          Attack        0    6000
+  Metrics:
+    Accuracy:    1.0000
+    Precision:   1.0000
+    Recall:      1.0000
+    Specificity: 1.0000
+    F1 Score:    1.0000
+    FPR:         0.000000
+    FNR:         0.000000
+
+random_noise_sigma_2.0:
+  Threshold: 0.107312
+  Confusion Matrix:
+                 Predicted
+                 Honest  Attack
+    Actual Honest    6000       0
+          Attack        0    6000
+  Metrics:
+    Accuracy:    1.0000
+    Precision:   1.0000
+    Recall:      1.0000
+    Specificity: 1.0000
+    F1 Score:    1.0000
+    FPR:         0.000000
+    FNR:         0.000000
+
+random_noise_sigma_5.0:
+  Threshold: 0.090031
+  Confusion Matrix:
+                 Predicted
+                 Honest  Attack
+    Actual Honest    6000       0
+          Attack        0    6000
+  Metrics:
+    Accuracy:    1.0000
+    Precision:   1.0000
+    Recall:      1.0000
+    Specificity: 1.0000
+    F1 Score:    1.0000
+    FPR:         0.000000
+    FNR:         0.000000
+
+replay_cross_sequence_same_layer:
+  Threshold: 0.977433
+  Confusion Matrix:
+                 Predicted
+                 Honest  Attack
+    Actual Honest    5845     155
+          Attack     1505    4495
+  Metrics:
+    Accuracy:    0.8617
+    Precision:   0.7952
+    Recall:      0.9742
+    Specificity: 0.7492
+    F1 Score:    0.8757
+    FPR:         0.250833
+    FNR:         0.025833
+
+replay_cross_sequence_cross_layer:
+  Threshold: 0.976204
+  Confusion Matrix:
+                 Predicted
+                 Honest  Attack
+    Actual Honest    5893     107
+          Attack     1153    4847
+  Metrics:
+    Accuracy:    0.8950
+    Precision:   0.8364
+    Recall:      0.9822
+    Specificity: 0.8078
+    F1 Score:    0.9034
+    FPR:         0.192167
+    FNR:         0.017833
+
+replay_same_sequence_cross_layer:
+  Threshold: 0.968968
+  Confusion Matrix:
+                 Predicted
+                 Honest  Attack
+    Actual Honest    5988      12
+          Attack      571     390
+  Metrics:
+    Accuracy:    0.9162
+    Precision:   0.9129
+    Recall:      0.9980
+    Specificity: 0.4058
+    F1 Score:    0.9536
+    FPR:         0.594173
+    FNR:         0.002000
+
+4. ROC-AUC
+----------------------------------------
+  random_noise_sigma_0.1: 1.000000 [Excellent]
+  random_noise_sigma_0.5: 1.000000 [Excellent]
+  random_noise_sigma_1.0: 1.000000 [Excellent]
+  random_noise_sigma_2.0: 1.000000 [Excellent]
+  random_noise_sigma_5.0: 1.000000 [Excellent]
+  replay_cross_sequence_same_layer: 0.933188 [Good]
+  replay_cross_sequence_cross_layer: 0.964480 [Excellent]
+  replay_same_sequence_cross_layer: 0.885808 [Good]
+
+5. OPTIMAL THRESHOLDS (F1-optimized)
+----------------------------------------
+
+random_noise_sigma_0.1:
+  Optimal Threshold: 0.112195
+  Best F1: 1.000000
+  TPR: 1.000000
+  FPR: 0.000000
+
+random_noise_sigma_0.5:
+  Optimal Threshold: 0.085237
+  Best F1: 1.000000
+  TPR: 1.000000
+  FPR: 0.000000
+
+random_noise_sigma_1.0:
+  Optimal Threshold: 0.096903
+  Best F1: 1.000000
+  TPR: 1.000000
+  FPR: 0.000000
+
+random_noise_sigma_2.0:
+  Optimal Threshold: 0.107312
+  Best F1: 1.000000
+  TPR: 1.000000
+  FPR: 0.000000
+
+random_noise_sigma_5.0:
+  Optimal Threshold: 0.090031
+  Best F1: 1.000000
+  TPR: 1.000000
+  FPR: 0.000000
+
+replay_cross_sequence_same_layer:
+  Optimal Threshold: 0.977433
+  Best F1: 0.875655
+  TPR: 0.974167
+  FPR: 0.250833
+
+replay_cross_sequence_cross_layer:
+  Optimal Threshold: 0.976204
+  Best F1: 0.903419
+  TPR: 0.982167
+  FPR: 0.192167
+
+replay_same_sequence_cross_layer:
+  Optimal Threshold: 0.968968
+  Best F1: 0.953579
+  TPR: 0.998000
+  FPR: 0.594173
+
+6. KOLMOGOROV-SMIRNOV TEST
+----------------------------------------
+
+random_noise_sigma_0.1:
+  KS Statistic: 1.000000
+  P-value: 0.00e+00
+  Significant (α=0.05): True
+  Significant (α=0.01): True
+
+random_noise_sigma_0.5:
+  KS Statistic: 1.000000
+  P-value: 0.00e+00
+  Significant (α=0.05): True
+  Significant (α=0.01): True
+
+random_noise_sigma_1.0:
+  KS Statistic: 1.000000
+  P-value: 0.00e+00
+  Significant (α=0.05): True
+  Significant (α=0.01): True
+
+random_noise_sigma_2.0:
+  KS Statistic: 1.000000
+  P-value: 0.00e+00
+  Significant (α=0.05): True
+  Significant (α=0.01): True
+
+random_noise_sigma_5.0:
+  KS Statistic: 1.000000
+  P-value: 0.00e+00
+  Significant (α=0.05): True
+  Significant (α=0.01): True
+
+replay_cross_sequence_same_layer:
+  KS Statistic: 0.723500
+  P-value: 0.00e+00
+  Significant (α=0.05): True
+  Significant (α=0.01): True
+
+replay_cross_sequence_cross_layer:
+  KS Statistic: 0.790833
+  P-value: 0.00e+00
+  Significant (α=0.05): True
+  Significant (α=0.01): True
+
+replay_same_sequence_cross_layer:
+  KS Statistic: 0.596173
+  P-value: 6.44e-278
+  Significant (α=0.05): True
+  Significant (α=0.01): True
+
+================================================================================
+End of Report
+================================================================================

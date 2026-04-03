@@ -1,0 +1,154 @@
+"""
+Stage 2 Discriminator Experiment
+主实验流程
+"""
+
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '../stage1_separability'))
+
+import yaml
+import torch
+import numpy as np
+import logging
+from datetime import datetime
+from torch.utils.data import DataLoader, random_split
+
+from model_loader import ModelLoader
+from data_generator import HonestSampleGenerator, DatasetLoader
+from sample_cache import SampleCache
+from data.attack_generator import LayerSkippingGenerator, PrecisionDowngradeGenerator, AdversarialPerturbationGenerator
+from data.dataset import DiscriminatorDataset
+from models.discriminator import Discriminator
+from training.trainer import DiscriminatorTrainer
+from training.evaluator import DiscriminatorEvaluator
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+
+def load_config(config_path='config.yaml'):
+    """加载配置"""
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
+
+def prepare_data(config):
+    """准备数据"""
+    logger.info("=" * 50)
+    logger.info("步骤1: 加载模型和数据")
+    logger.info("=" * 50)
+
+    # 加载模型
+    model_loader = ModelLoader(config['model'])
+    model, tokenizer = model_loader.load()
+    model_info = model_loader.get_model_info()
+
+    # 加载数据集
+    dataset_loader = DatasetLoader(config['dataset'])
+    texts = dataset_loader.load(num_samples=config['dataset']['num_samples'])
+
+    # 生成或加载诚实样本
+    cache = SampleCache(config['experiment']['sample_cache'])
+    cache_key = cache.generate_cache_key(config)
+    honest_samples = cache.load(cache_key)
+
+    if honest_samples is None:
+        logger.info("缓存未命中，生成诚实样本...")
+        honest_gen = HonestSampleGenerator(model, tokenizer, model_info)
+        honest_samples = honest_gen.generate(texts, config['model']['target_layers'])
+        cache.save(cache_key, honest_samples, config)
+    else:
+        logger.info(f"从缓存加载了 {len(honest_samples)} 个诚实样本")
+
+    return honest_samples
+
+
+def generate_attacks(honest_samples, config):
+    """生成攻击样本"""
+    logger.info("=" * 50)
+    logger.info("步骤2: 生成攻击样本")
+    logger.info("=" * 50)
+
+    attack_samples = []
+
+    # Layer Skipping
+    if config['attacks']['layer_skipping']['enabled']:
+        gen = LayerSkippingGenerator(honest_samples)
+        attack_samples.extend(gen.generate())
+
+    # Precision Downgrade
+    if config['attacks']['precision_downgrade']['enabled']:
+        gen = PrecisionDowngradeGenerator(honest_samples, config['attacks']['precision_downgrade']['bit_widths'])
+        attack_samples.extend(gen.generate())
+
+    # Adversarial Perturbation
+    if config['attacks']['adversarial_perturbation']['enabled']:
+        gen = AdversarialPerturbationGenerator(honest_samples, config['attacks']['adversarial_perturbation']['epsilon'])
+        attack_samples.extend(gen.generate())
+
+    logger.info(f"总计生成 {len(attack_samples)} 个攻击样本")
+    return attack_samples
+
+
+def main():
+    """主函数"""
+    config = load_config()
+    np.random.seed(config['experiment']['seed'])
+    torch.manual_seed(config['experiment']['seed'])
+
+    device = torch.device('cuda' if torch.cuda.is_available() and config['training']['device'] == 'auto' else 'cpu')
+    logger.info(f"使用设备: {device}")
+
+    # 准备数据
+    honest_samples = prepare_data(config)
+    attack_samples = generate_attacks(honest_samples, config)
+    all_samples = honest_samples + attack_samples
+
+    # 创建数据集
+    dataset = DiscriminatorDataset(all_samples)
+    train_size = int(config['training']['train_ratio'] * len(dataset))
+    val_size = int(config['training']['val_ratio'] * len(dataset))
+    test_size = len(dataset) - train_size - val_size
+
+    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
+
+    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=config['training']['batch_size'])
+    test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'])
+
+    logger.info(f"数据分割: Train={train_size}, Val={val_size}, Test={test_size}")
+
+    # 训练所有架构
+    results = {}
+    for arch_config in config['discriminator']['architectures']:
+        logger.info("=" * 50)
+        logger.info(f"训练架构: {arch_config['name']}")
+        logger.info("=" * 50)
+
+        model = Discriminator(config['model']['hidden_dim'], arch_config['hidden_dims'], arch_config['dropout'])
+        logger.info(f"模型参数量: {model.count_parameters():,}")
+
+        trainer = DiscriminatorTrainer(model, train_loader, val_loader, config['training'], device)
+        save_dir = os.path.join(config['experiment']['output_dir'], arch_config['name'])
+        history = trainer.train(config['training']['epochs'], save_dir)
+
+        evaluator = DiscriminatorEvaluator(model, test_loader, device)
+        metrics = evaluator.evaluate()
+
+        results[arch_config['name']] = {'history': history, 'metrics': metrics, 'params': model.count_parameters()}
+
+    # 保存结果
+    import json
+    output_path = os.path.join(config['experiment']['output_dir'], 'results.json')
+    with open(output_path, 'w') as f:
+        json.dump(results, f, indent=2)
+
+    logger.info(f"实验完成！结果保存到 {output_path}")
+
+
+if __name__ == "__main__":
+    main()
+
+
+

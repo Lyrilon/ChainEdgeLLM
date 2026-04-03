@@ -2,3 +2,9 @@
 *.onnx
 data/
 *.log
+*.png
+*.tex
+*.pdf
+*.zip
+*.bib 
+*.cls

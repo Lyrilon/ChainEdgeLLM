@@ -109,6 +109,11 @@ def run_experiment(config: dict, quick_test: bool = False) -> dict:
         noise_levels = config['attacks']['random_noise']['noise_levels']
         replay_types = config['attacks']['replay_attack']['replay_types']
 
+    # --full 参数: 测试所有层
+    if args.full:
+        target_layers = list(range(model_info['num_layers']))
+        logger.info(f"【全层测试模式】测试所有 {model_info['num_layers']} 层")
+
     logger.info(f"目标层: {target_layers}")
     logger.info(f"样本数: {num_samples}")
 
@@ -427,6 +432,11 @@ def main():
         type=str,
         default=None,
         help='输出目录 (覆盖配置文件设置)'
+    )
+    parser.add_argument(
+        '--full',
+        action='store_true',
+        help='测试所有层 (覆盖配置文件中的 target_layers)'
     )
 
     args = parser.parse_args()

@@ -1,0 +1,68 @@
+# Stage 2 Discriminator Experiment Configuration
+# TS-ZRV Deep Integrity Check 判别器训练配置
+
+# 模型配置（复用 Stage 1）
+model:
+  name: "qwen2.5-1.5b-instruct"
+  modelscope_id: "qwen/Qwen2.5-1.5B-Instruct"
+  target_layers: [7, 14, 21]
+  hidden_dim: 1536
+  max_length: 256
+
+# 数据集配置（复用 Stage 1）
+dataset:
+  name: "alpaca"
+  modelscope_id: "AI-ModelScope/alpaca-gpt4-data-en"
+  subset: "train"
+  num_samples: 2000
+
+# 判别器架构配置
+discriminator:
+  architectures:
+    - name: "large"
+      hidden_dims: [1024, 512, 256, 128]
+      dropout: 0.3
+      activation: "relu"
+    - name: "medium"
+      hidden_dims: [512, 256, 128]
+      dropout: 0.3
+      activation: "relu"
+    - name: "small"
+      hidden_dims: [256, 128, 64]
+      dropout: 0.3
+      activation: "relu"
+
+# Stage 2 攻击配置
+attacks:
+  layer_skipping:
+    enabled: true
+
+  precision_downgrade:
+    enabled: true
+    bit_widths: [16, 8, 4]  # FP16, INT8, INT4
+
+  adversarial_perturbation:
+    enabled: true
+    methods: ["fgsm"]  # FGSM
+    epsilon: [0.01, 0.05, 0.1]
+
+# 训练配置
+training:
+  epochs: 50
+  batch_size: 64
+  learning_rate: 1e-4
+  weight_decay: 1e-5
+  early_stopping_patience: 5
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  device: "auto"  # auto, cpu, cuda
+
+# 实验参数
+experiment:
+  seed: 42
+  output_dir: "./results"
+  cache_dir: "./data/cache"
+  sample_cache:
+    enabled: true
+    cache_dir: "../stage1_separability/data/sample_cache"
