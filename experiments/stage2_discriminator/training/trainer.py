@@ -23,7 +23,10 @@ class DiscriminatorTrainer:
         self.config = config
         self.device = device
 
-        self.criterion = nn.CrossEntropyLoss()
+        # 计算类别权重以处理数据不平衡（攻击样本远多于诚实样本）
+        # 假设 label 0=诚实, 1=攻击，比例约 1:21
+        class_weights = torch.tensor([21.0, 1.0]).to(device)  # 给少数类更高权重
+        self.criterion = nn.CrossEntropyLoss(weight=class_weights)
         self.optimizer = optim.AdamW(
             model.parameters(),
             lr=float(config['learning_rate']),
