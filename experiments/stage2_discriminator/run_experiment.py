@@ -41,24 +41,43 @@ def prepare_data(config):
     logger.info("=" * 50)
 
     # 加载模型
-    model_loader = ModelLoader(config['model'])
+    model_loader = ModelLoader(
+        model_name=config['model']['name'],
+        cache_dir=config['experiment']['cache_dir'],
+        device=config['training']['device']
+    )
     model, tokenizer = model_loader.load()
     model_info = model_loader.get_model_info()
 
     # 加载数据集
-    dataset_loader = DatasetLoader(config['dataset'])
+    dataset_loader = DatasetLoader(
+        dataset_name=config['dataset']['name'],
+        cache_dir=config['experiment']['cache_dir']
+    )
     texts = dataset_loader.load(num_samples=config['dataset']['num_samples'])
 
     # 生成或加载诚实样本
-    cache = SampleCache(config['experiment']['sample_cache'])
-    cache_key = cache.generate_cache_key(config)
-    honest_samples = cache.load(cache_key)
+    cache = SampleCache(cache_dir=config['experiment']['sample_cache']['cache_dir'])
+    honest_samples = cache.load(
+        model_name=config['model']['name'],
+        num_samples=config['dataset']['num_samples'],
+        target_layers=config['model']['target_layers'],
+        seed=config['experiment']['seed'],
+        dataset_name=config['dataset']['name']
+    )
 
     if honest_samples is None:
         logger.info("缓存未命中，生成诚实样本...")
         honest_gen = HonestSampleGenerator(model, tokenizer, model_info)
         honest_samples = honest_gen.generate(texts, config['model']['target_layers'])
-        cache.save(cache_key, honest_samples, config)
+        cache.save(
+            samples=honest_samples,
+            model_name=config['model']['name'],
+            num_samples=config['dataset']['num_samples'],
+            target_layers=config['model']['target_layers'],
+            seed=config['experiment']['seed'],
+            dataset_name=config['dataset']['name']
+        )
     else:
         logger.info(f"从缓存加载了 {len(honest_samples)} 个诚实样本")
 
