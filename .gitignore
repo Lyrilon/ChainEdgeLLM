@@ -1,6 +1,5 @@
 *.pyc
 *.onnx
-data/
 *.log
 *.png
 *.tex
@@ -8,3 +7,4 @@ data/
 *.zip
 *.bib 
 *.cls
+experiments/stage1_separability/data/*
