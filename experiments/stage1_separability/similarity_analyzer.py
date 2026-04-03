@@ -282,6 +282,89 @@ class SeparabilityAnalyzer:
             'metrics_at_optimal': self.compute_roc_metrics(best_threshold, attack_label)
         }
 
+    def threshold_sensitivity_analysis(self, attack_label: str, num_points: int = 100) -> Dict:
+        """
+        阈值敏感性分析
+
+        Args:
+            attack_label: 攻击类型
+            num_points: 采样点数
+
+        Returns:
+            阈值扫描结果
+        """
+        if self.honest_scores is None or attack_label not in self.attack_scores:
+            return {}
+
+        attack_scores = self.attack_scores[attack_label]
+        all_scores = np.concatenate([self.honest_scores, attack_scores])
+        min_score, max_score = np.min(all_scores), np.max(all_scores)
+
+        thresholds = np.linspace(min_score, max_score, num_points)
+        results = {'thresholds': [], 'precision': [], 'recall': [], 'f1': []}
+
+        for threshold in thresholds:
+            metrics = self.compute_roc_metrics(threshold, attack_label)
+            results['thresholds'].append(float(threshold))
+            results['precision'].append(float(metrics.get('Precision', 0)))
+            results['recall'].append(float(metrics.get('TPR', 0)))
+            results['f1'].append(float(metrics.get('F1', 0)))
+
+        return results
+
+    def layer_wise_performance(self, attack_labels: List[str]) -> Dict:
+        """
+        分层性能分析
+
+        Args:
+            attack_labels: 攻击类型列表
+
+        Returns:
+            每层的性能指标
+        """
+        from collections import defaultdict
+        layer_results = defaultdict(lambda: defaultdict(dict))
+
+        # 按层分组
+        for result in self.results:
+            layer_idx = result.layer_idx
+            label = result.label
+
+            if label not in layer_results[layer_idx]:
+                layer_results[layer_idx][label] = []
+            layer_results[layer_idx][label].append(result.cosine_similarity)
+
+        # 计算每层的性能
+        performance = {}
+        for layer_idx in sorted(layer_results.keys()):
+            layer_data = layer_results[layer_idx]
+            honest_scores = np.array(layer_data.get('honest', []))
+
+            performance[layer_idx] = {}
+            for attack_label in attack_labels:
+                if attack_label in layer_data:
+                    attack_scores = np.array(layer_data[attack_label])
+
+                    # 计算最优F1
+                    all_scores = np.concatenate([honest_scores, attack_scores])
+                    thresholds = np.linspace(all_scores.min(), all_scores.max(), 100)
+                    best_f1 = 0
+
+                    for threshold in thresholds:
+                        tp = np.sum((honest_scores >= threshold))
+                        fn = np.sum((honest_scores < threshold))
+                        fp = np.sum((attack_scores >= threshold))
+
+                        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+                        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+                        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+                        best_f1 = max(best_f1, f1)
+
+                    performance[layer_idx][attack_label] = float(best_f1)
+
+        return performance
+
+
     def compute_roc_auc(self, attack_label: str) -> float:
         """
         计算 ROC-AUC

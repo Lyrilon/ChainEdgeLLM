@@ -306,6 +306,14 @@ def run_experiment(config: dict, quick_test: bool = False) -> dict:
         logger.info("保存详细报告...")
         visualizer.save_detailed_report(analyzer, attack_labels, "detailed_report.txt")
 
+        # 阈值敏感性分析
+        logger.info("绘制阈值敏感性分析...")
+        visualizer.plot_threshold_sensitivity(analyzer, attack_labels)
+
+        # 分层性能分析
+        logger.info("绘制分层性能分析...")
+        visualizer.plot_layer_wise_performance(analyzer, attack_labels)
+
     except Exception as e:
         logger.error(f"可视化生成失败: {e}")
         import traceback

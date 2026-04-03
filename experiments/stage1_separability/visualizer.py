@@ -671,6 +671,57 @@ class ResultVisualizer:
 
         print(f"所有混淆矩阵已保存到: {cm_dir}/")
 
+    def plot_threshold_sensitivity(self, analyzer, attack_labels: List[str]):
+        """绘制阈值敏感性分析"""
+        n_labels = len(attack_labels)
+        fig, axes = plt.subplots(1, n_labels, figsize=(6 * n_labels, 5))
+        if n_labels == 1:
+            axes = [axes]
+
+        for idx, attack_label in enumerate(attack_labels):
+            if attack_label not in analyzer.attack_scores:
+                continue
+
+            result = analyzer.threshold_sensitivity_analysis(attack_label, num_points=100)
+            if not result:
+                continue
+
+            ax = axes[idx]
+            ax.plot(result['thresholds'], result['precision'], label='Precision', linewidth=2)
+            ax.plot(result['thresholds'], result['recall'], label='Recall', linewidth=2)
+            ax.plot(result['thresholds'], result['f1'], label='F1-Score', linewidth=2)
+
+            ax.set_xlabel('Threshold', fontsize=12)
+            ax.set_ylabel('Score', fontsize=12)
+            ax.set_title(f'{attack_label}', fontsize=14)
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        self._save_figure("threshold_sensitivity")
+
+    def plot_layer_wise_performance(self, analyzer, attack_labels: List[str]):
+        """绘制分层性能分析"""
+        performance = analyzer.layer_wise_performance(attack_labels)
+        if not performance:
+            return
+
+        layers = sorted(performance.keys())
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        for attack_label in attack_labels:
+            f1_scores = [performance[layer].get(attack_label, 0) for layer in layers]
+            ax.plot(layers, f1_scores, marker='o', label=attack_label, linewidth=2)
+
+        ax.set_xlabel('Layer Index', fontsize=12)
+        ax.set_ylabel('F1-Score', fontsize=12)
+        ax.set_title('Layer-wise Performance Analysis', fontsize=14)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        self._save_figure("layer_wise_performance")
+
     def save_detailed_report(self, analyzer, attack_labels: List[str], output_file: str = "detailed_report.txt"):
         """
         保存详细的文本报告
