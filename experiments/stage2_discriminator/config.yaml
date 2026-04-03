@@ -62,7 +62,7 @@ training:
 experiment:
   seed: 42
   output_dir: "./results"
-  cache_dir: "./data/cache"
+  cache_dir: "../stage1_separability/data/cache"  # 复用 Stage 1 的缓存
   sample_cache:
     enabled: true
     cache_dir: "../stage1_separability/data/sample_cache"
