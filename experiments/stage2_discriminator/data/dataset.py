@@ -22,12 +22,16 @@ class DiscriminatorDataset(Dataset):
         # 提取特征和标签
         self.features = []
         self.labels = []
+        self.attack_types = []
 
         for sample in samples:
             self.features.append(sample.x_curr)
             # 二分类：honest=1, attack=0
             label = 1 if sample.label == 'honest' else 0
             self.labels.append(label)
+            # 保存攻击类型（诚实样本为 'honest'）
+            attack_type = sample.metadata.get('attack_type', 'honest') if sample.metadata else 'honest'
+            self.attack_types.append(attack_type)
 
         self.features = np.array(self.features, dtype=np.float32)
         self.labels = np.array(self.labels, dtype=np.int64)
@@ -38,5 +42,6 @@ class DiscriminatorDataset(Dataset):
     def __getitem__(self, idx):
         return {
             'features': torch.from_numpy(self.features[idx]),
-            'labels': torch.tensor(self.labels[idx], dtype=torch.long)
+            'labels': torch.tensor(self.labels[idx], dtype=torch.long),
+            'attack_type': self.attack_types[idx]
         }

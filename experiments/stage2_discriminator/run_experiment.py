@@ -146,7 +146,67 @@ def generate_experiment_report(config, results, honest_samples, attack_samples, 
         json.dump(report, f, indent=2, ensure_ascii=False)
 
     logger.info(f"实验报告已保存: {report_path}")
+
+    # 生成 Markdown 报告
+    _generate_markdown_report(report, output_dir)
     return report
+
+
+def _generate_markdown_report(report, output_dir):
+    """生成人类可读的 Markdown 报告"""
+    lines = []
+    lines.append(f"# Stage 2 判别器实验报告\n")
+    lines.append(f"**时间**: {report['timestamp']}\n")
+
+    # 模型与数据
+    lines.append("## 实验配置\n")
+    lines.append("### 模型")
+    lines.append(f"- 名称: `{report['model']['name']}`")
+    lines.append(f"- 隐藏层维度: {report['model']['hidden_dim']}")
+    lines.append(f"- 目标层: {report['model']['target_layers']}\n")
+
+    lines.append("### 数据集")
+    d = report['dataset']
+    lines.append(f"- 数据集: `{d['name']}`")
+    lines.append(f"- 诚实样本: {d['honest_samples']}")
+    lines.append(f"- 攻击样本: {d['attack_samples']}")
+    lines.append(f"- 类别比例: {d['class_ratio']}\n")
+
+    lines.append("### 训练参数")
+    t = report['training']
+    lines.append(f"- 学习率: {t['learning_rate']}")
+    lines.append(f"- 批大小: {t['batch_size']}")
+    lines.append(f"- 类别权重: {t['class_weights']}")
+    lines.append(f"- Early Stopping: {t['early_stopping_patience']} epochs\n")
+
+    # 模型对比表
+    lines.append("## 模型性能对比\n")
+    lines.append("| 架构 | 参数量 | Accuracy | Precision | Recall | F1 | AUC |")
+    lines.append("|------|--------|----------|-----------|--------|----|-----|")
+    for arch_name, result in report['results'].items():
+        m = result['metrics']
+        lines.append(
+            f"| {arch_name} | {result['params']:,} "
+            f"| {m['accuracy']:.4f} | {m['precision']:.4f} "
+            f"| {m['recall']:.4f} | {m['f1']:.4f} | {m['auc']:.4f} |"
+        )
+    lines.append("")
+
+    # 各架构攻击类型错误分析
+    lines.append("## 攻击类型错误分析\n")
+    for arch_name, result in report['results'].items():
+        lines.append(f"### {arch_name}\n")
+        error_by_type = result['metrics'].get('error_by_attack_type', {})
+        lines.append("| 攻击类型 | 总样本 | 错误数 | 错误率 |")
+        lines.append("|---------|--------|--------|--------|")
+        for attack_type, stats in sorted(error_by_type.items(), key=lambda x: -x[1]['error_rate']):
+            lines.append(f"| {attack_type} | {stats['total']} | {stats['errors']} | {stats['error_rate']:.2%} |")
+        lines.append("")
+
+    md_path = os.path.join(output_dir, 'experiment_report.md')
+    with open(md_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
+    logger.info(f"Markdown 报告已保存: {md_path}")
 
 
 def main():
