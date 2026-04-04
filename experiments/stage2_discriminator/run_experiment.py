@@ -23,6 +23,7 @@ from data.dataset import DiscriminatorDataset
 from models.discriminator import Discriminator, CNNDiscriminator, AttentionDiscriminator
 from training.trainer import DiscriminatorTrainer
 from training.evaluator import DiscriminatorEvaluator
+import json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
