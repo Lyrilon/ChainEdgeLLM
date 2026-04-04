@@ -42,6 +42,23 @@ discriminator:
       hidden_dim: 256
       dropout: 0.3
 
+# 大型架构（--big 参数启用）
+  big_architectures:
+    - name: "mlp_xlarge"
+      type: "mlp"
+      hidden_dims: [2048, 1024, 512, 256, 128]
+      dropout: 0.3
+    - name: "cnn_deep"
+      type: "cnn"
+      channels: [64, 128, 256, 512]
+      kernel_size: 5
+      dropout: 0.3
+    - name: "attention_large"
+      type: "attention"
+      num_heads: 16
+      hidden_dim: 512
+      dropout: 0.3
+
 # Stage 2 攻击配置
 attacks:
   layer_skipping:

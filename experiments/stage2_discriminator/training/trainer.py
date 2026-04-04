@@ -4,6 +4,7 @@ Discriminator Trainer
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import numpy as np
@@ -11,6 +12,20 @@ import os
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+class FocalLoss(nn.Module):
+    """Focal Loss：专门处理类别不平衡，对难分样本加大惩罚"""
+
+    def __init__(self, gamma: float = 2.0, weight=None):
+        super().__init__()
+        self.gamma = gamma
+        self.weight = weight
+
+    def forward(self, inputs, targets):
+        ce_loss = F.cross_entropy(inputs, targets, weight=self.weight, reduction='none')
+        pt = torch.exp(-ce_loss)
+        return ((1 - pt) ** self.gamma * ce_loss).mean()
 
 
 class DiscriminatorTrainer:
@@ -24,11 +39,15 @@ class DiscriminatorTrainer:
         self.device = device
 
         # 类别权重处理数据不平衡
+        class_weights = None
         if 'class_weights' in config and config['class_weights']:
             class_weights = torch.tensor(config['class_weights'], dtype=torch.float32).to(device)
-            self.criterion = nn.CrossEntropyLoss(weight=class_weights)
+
+        # 损失函数选择
+        if config.get('loss') == 'focal':
+            self.criterion = FocalLoss(gamma=2.0, weight=class_weights)
         else:
-            self.criterion = nn.CrossEntropyLoss()
+            self.criterion = nn.CrossEntropyLoss(weight=class_weights) if class_weights is not None else nn.CrossEntropyLoss()
         self.optimizer = optim.AdamW(
             model.parameters(),
             lr=float(config['learning_rate']),

@@ -209,14 +209,31 @@ def _generate_markdown_report(report, output_dir):
     logger.info(f"Markdown 报告已保存: {md_path}")
 
 
-def main():
+def main(args=None):
     """主函数"""
     config = load_config()
     np.random.seed(config['experiment']['seed'])
     torch.manual_seed(config['experiment']['seed'])
 
     device = torch.device('cuda' if torch.cuda.is_available() and config['training']['device'] == 'auto' else 'cpu')
-    logger.info(f"使用设备: {device}")
+
+    # 根据参数选择架构列表
+    if args and args.big:
+        arch_list = config['discriminator'].get('big_architectures', config['discriminator']['architectures'])
+        mode = 'big'
+    else:
+        arch_list = config['discriminator']['architectures']
+        mode = 'default'
+
+    # 根据参数选择损失函数
+    training_config = dict(config['training'])
+    if args and args.novel:
+        training_config['loss'] = 'focal'
+        mode = mode + '_focal'
+    else:
+        training_config['loss'] = 'cross_entropy'
+
+    logger.info(f"使用设备: {device}, 模式: {mode}")
 
     # 创建带时间戳的输出目录
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -245,7 +262,7 @@ def main():
 
     # 训练所有架构
     results = {}
-    for arch_config in config['discriminator']['architectures']:
+    for arch_config in arch_list:
         logger.info("=" * 50)
         logger.info(f"训练架构: {arch_config['name']}")
         logger.info("=" * 50)
@@ -263,7 +280,7 @@ def main():
 
         logger.info(f"模型参数量: {model.count_parameters():,}")
 
-        trainer = DiscriminatorTrainer(model, train_loader, val_loader, config['training'], device)
+        trainer = DiscriminatorTrainer(model, train_loader, val_loader, training_config, device)
         save_dir = os.path.join(output_dir, arch_config['name'])
         history = trainer.train(config['training']['epochs'], save_dir)
 
@@ -284,7 +301,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--big', action='store_true', help='训练更大的模型架构')
+    parser.add_argument('--novel', action='store_true', help='使用新型损失函数（Focal Loss）')
+    args = parser.parse_args()
+    main(args)
 
 
 
