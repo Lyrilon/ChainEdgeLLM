@@ -91,7 +91,7 @@ attacks:
   adversarial_perturbation:
     enabled: true
     methods: ["fgsm"]  # FGSM
-    epsilon: [0.01, 0.05, 0.1]
+    epsilon: [0.1, 0.5, 1.0]  # 扩大扰动范围，原为 [0.01, 0.05, 0.1]
 
 # 训练配置
 training:
