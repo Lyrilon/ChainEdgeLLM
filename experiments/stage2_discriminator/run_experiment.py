@@ -20,7 +20,7 @@ from data_generator import HonestSampleGenerator, DatasetLoader
 from sample_cache import SampleCache
 from data.attack_generator import LayerSkippingGenerator, PrecisionDowngradeGenerator, AdversarialPerturbationGenerator
 from data.dataset import DiscriminatorDataset
-from models.discriminator import Discriminator
+from models.discriminator import Discriminator, CNNDiscriminator, AttentionDiscriminator
 from training.trainer import DiscriminatorTrainer
 from training.evaluator import DiscriminatorEvaluator
 
@@ -189,7 +189,17 @@ def main():
         logger.info(f"训练架构: {arch_config['name']}")
         logger.info("=" * 50)
 
-        model = Discriminator(config['model']['hidden_dim'], arch_config['hidden_dims'], arch_config['dropout'])
+        # 根据类型创建模型
+        arch_type = arch_config.get('type', 'mlp')
+        if arch_type == 'mlp':
+            model = Discriminator(config['model']['hidden_dim'], arch_config['hidden_dims'], arch_config['dropout'])
+        elif arch_type == 'cnn':
+            model = CNNDiscriminator(config['model']['hidden_dim'], arch_config['channels'], arch_config['kernel_size'], arch_config['dropout'])
+        elif arch_type == 'attention':
+            model = AttentionDiscriminator(config['model']['hidden_dim'], arch_config['num_heads'], arch_config['hidden_dim'], arch_config['dropout'])
+        else:
+            raise ValueError(f"Unknown architecture type: {arch_type}")
+
         logger.info(f"模型参数量: {model.count_parameters():,}")
 
         trainer = DiscriminatorTrainer(model, train_loader, val_loader, config['training'], device)

@@ -37,12 +37,14 @@ class DiscriminatorTrainer:
 
         self.best_val_loss = float('inf')
         self.patience_counter = 0
-        self.history = {'train_loss': [], 'val_loss': [], 'val_acc': []}
+        self.history = {'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': []}
 
     def train_epoch(self):
         """训练一个 epoch"""
         self.model.train()
         total_loss = 0
+        correct = 0
+        total = 0
 
         for batch in self.train_loader:
             features = batch['features'].to(self.device)
@@ -55,8 +57,13 @@ class DiscriminatorTrainer:
             self.optimizer.step()
 
             total_loss += loss.item()
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
 
-        return total_loss / len(self.train_loader)
+        train_loss = total_loss / len(self.train_loader)
+        train_acc = correct / total
+        return train_loss, train_acc
 
     def validate(self):
         """验证"""
@@ -88,17 +95,17 @@ class DiscriminatorTrainer:
         best_model_path = os.path.join(save_dir, 'best_model.pt')
 
         for epoch in range(epochs):
-            train_loss = self.train_epoch()
+            train_loss, train_acc = self.train_epoch()
             val_loss, val_acc = self.validate()
 
             self.history['train_loss'].append(train_loss)
+            self.history['train_acc'].append(train_acc)
             self.history['val_loss'].append(val_loss)
             self.history['val_acc'].append(val_acc)
 
             logger.info(f"Epoch {epoch+1}/{epochs} - "
-                       f"Train Loss: {train_loss:.4f}, "
-                       f"Val Loss: {val_loss:.4f}, "
-                       f"Val Acc: {val_acc:.4f}")
+                       f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, "
+                       f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
 
             # Early Stopping
             if val_loss < self.best_val_loss:
