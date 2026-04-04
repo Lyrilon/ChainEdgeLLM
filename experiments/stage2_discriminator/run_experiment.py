@@ -253,8 +253,8 @@ def main(args=None):
     attack_samples = generate_attacks(honest_samples, config)
     all_samples = honest_samples + attack_samples
 
-    # 按层训练独立判别器（D_theta^(k)）
-    target_layers = config['model']['target_layers']
+    # 根据参数选择目标层
+    target_layers = [14] if (args and args.single) else config['model']['target_layers']
     results = {}
 
     for layer_idx in target_layers:
@@ -324,6 +324,7 @@ if __name__ == "__main__":
     parser.add_argument('--big', action='store_true', help='训练更大的模型架构')
     parser.add_argument('--huge', action='store_true', help='训练超大模型架构（10M-100M）')
     parser.add_argument('--novel', action='store_true', help='使用新型损失函数（Focal Loss）')
+    parser.add_argument('--single', action='store_true', help='只训练第14层的判别器')
     args = parser.parse_args()
     main(args)
 
