@@ -19,18 +19,28 @@ dataset:
 # 判别器架构配置
 discriminator:
   architectures:
-    - name: "large"
+    - name: "mlp_large"
+      type: "mlp"
       hidden_dims: [1024, 512, 256, 128]
       dropout: 0.3
-      activation: "relu"
-    - name: "medium"
+    - name: "mlp_medium"
+      type: "mlp"
       hidden_dims: [512, 256, 128]
       dropout: 0.3
-      activation: "relu"
-    - name: "small"
+    - name: "mlp_small"
+      type: "mlp"
       hidden_dims: [256, 128, 64]
       dropout: 0.3
-      activation: "relu"
+    - name: "cnn"
+      type: "cnn"
+      channels: [64, 128, 256]
+      kernel_size: 3
+      dropout: 0.3
+    - name: "attention"
+      type: "attention"
+      num_heads: 8
+      hidden_dim: 256
+      dropout: 0.3
 
 # Stage 2 攻击配置
 attacks:
