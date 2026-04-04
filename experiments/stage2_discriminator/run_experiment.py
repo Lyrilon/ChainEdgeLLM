@@ -111,6 +111,43 @@ def generate_attacks(honest_samples, config):
     return attack_samples
 
 
+def generate_experiment_report(config, results, honest_samples, attack_samples, output_dir):
+    """生成详细的实验报告"""
+    report = {
+        'timestamp': datetime.now().isoformat(),
+        'model': {
+            'name': config['model']['name'],
+            'hidden_dim': config['model']['hidden_dim'],
+            'target_layers': config['model']['target_layers']
+        },
+        'dataset': {
+            'name': config['dataset']['name'],
+            'num_samples': config['dataset']['num_samples'],
+            'honest_samples': len(honest_samples),
+            'attack_samples': len(attack_samples),
+            'total_samples': len(honest_samples) + len(attack_samples),
+            'class_ratio': f"1:{len(attack_samples)//len(honest_samples)}"
+        },
+        'training': {
+            'epochs': config['training']['epochs'],
+            'batch_size': config['training']['batch_size'],
+            'learning_rate': config['training']['learning_rate'],
+            'weight_decay': config['training']['weight_decay'],
+            'class_weights': config['training'].get('class_weights', None),
+            'early_stopping_patience': config['training']['early_stopping_patience']
+        },
+        'attacks': config['attacks'],
+        'results': results
+    }
+
+    report_path = os.path.join(output_dir, 'experiment_report.json')
+    with open(report_path, 'w', encoding='utf-8') as f:
+        json.dump(report, f, indent=2, ensure_ascii=False)
+
+    logger.info(f"实验报告已保存: {report_path}")
+    return report
+
+
 def main():
     """主函数"""
     config = load_config()
@@ -119,6 +156,12 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() and config['training']['device'] == 'auto' else 'cpu')
     logger.info(f"使用设备: {device}")
+
+    # 创建带时间戳的输出目录
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = os.path.join(config['experiment']['output_dir'], timestamp)
+    os.makedirs(output_dir, exist_ok=True)
+    logger.info(f"实验结果将保存到: {output_dir}")
 
     # 准备数据
     honest_samples = prepare_data(config)
@@ -150,7 +193,7 @@ def main():
         logger.info(f"模型参数量: {model.count_parameters():,}")
 
         trainer = DiscriminatorTrainer(model, train_loader, val_loader, config['training'], device)
-        save_dir = os.path.join(config['experiment']['output_dir'], arch_config['name'])
+        save_dir = os.path.join(output_dir, arch_config['name'])
         history = trainer.train(config['training']['epochs'], save_dir)
 
         evaluator = DiscriminatorEvaluator(model, test_loader, device)
@@ -158,13 +201,15 @@ def main():
 
         results[arch_config['name']] = {'history': history, 'metrics': metrics, 'params': model.count_parameters()}
 
-    # 保存结果
-    import json
-    output_path = os.path.join(config['experiment']['output_dir'], 'results.json')
-    with open(output_path, 'w') as f:
+    # 生成实验报告
+    generate_experiment_report(config, results, honest_samples, attack_samples, output_dir)
+
+    # 保存结果摘要
+    results_path = os.path.join(output_dir, 'results.json')
+    with open(results_path, 'w') as f:
         json.dump(results, f, indent=2)
 
-    logger.info(f"实验完成！结果保存到 {output_path}")
+    logger.info(f"实验完成！结果保存到 {output_dir}")
 
 
 if __name__ == "__main__":

@@ -57,6 +57,7 @@ training:
   val_ratio: 0.15
   test_ratio: 0.15
   device: "auto"  # auto, cpu, cuda
+  class_weights: [21.0, 1.0]  # [诚实样本权重, 攻击样本权重]，用于处理类别不平衡
 
 # 实验参数
 experiment:
