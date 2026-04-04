@@ -23,6 +23,7 @@ class DiscriminatorDataset(Dataset):
         self.features = []
         self.labels = []
         self.attack_types = []
+        self.layer_indices = []
 
         for sample in samples:
             self.features.append(sample.x_curr)
@@ -32,6 +33,7 @@ class DiscriminatorDataset(Dataset):
             # 保存攻击类型（诚实样本为 'honest'）
             attack_type = sample.metadata.get('attack_type', 'honest') if sample.metadata else 'honest'
             self.attack_types.append(attack_type)
+            self.layer_indices.append(sample.layer_idx)
 
         self.features = np.array(self.features, dtype=np.float32)
         self.labels = np.array(self.labels, dtype=np.int64)
@@ -43,5 +45,11 @@ class DiscriminatorDataset(Dataset):
         return {
             'features': torch.from_numpy(self.features[idx]),
             'labels': torch.tensor(self.labels[idx], dtype=torch.long),
-            'attack_type': self.attack_types[idx]
+            'attack_type': self.attack_types[idx],
+            'layer_idx': self.layer_indices[idx]
         }
+
+    def get_layer_samples(self, layer_idx: int) -> 'DiscriminatorDataset':
+        """返回指定层的子数据集"""
+        layer_samples = [s for s in self.samples if s.layer_idx == layer_idx]
+        return DiscriminatorDataset(layer_samples)

@@ -179,29 +179,33 @@ def _generate_markdown_report(report, output_dir):
     lines.append(f"- 类别权重: {t['class_weights']}")
     lines.append(f"- Early Stopping: {t['early_stopping_patience']} epochs\n")
 
-    # 模型对比表
+    # 模型对比表（按层）
     lines.append("## 模型性能对比\n")
-    lines.append("| 架构 | 参数量 | Accuracy | Precision | Recall | F1 | AUC |")
-    lines.append("|------|--------|----------|-----------|--------|----|-----|")
-    for arch_name, result in report['results'].items():
-        m = result['metrics']
-        lines.append(
-            f"| {arch_name} | {result['params']:,} "
-            f"| {m['accuracy']:.4f} | {m['precision']:.4f} "
-            f"| {m['recall']:.4f} | {m['f1']:.4f} | {m['auc']:.4f} |"
-        )
-    lines.append("")
-
-    # 各架构攻击类型错误分析
-    lines.append("## 攻击类型错误分析\n")
-    for arch_name, result in report['results'].items():
-        lines.append(f"### {arch_name}\n")
-        error_by_type = result['metrics'].get('error_by_attack_type', {})
-        lines.append("| 攻击类型 | 总样本 | 错误数 | 错误率 |")
-        lines.append("|---------|--------|--------|--------|")
-        for attack_type, stats in sorted(error_by_type.items(), key=lambda x: -x[1]['error_rate']):
-            lines.append(f"| {attack_type} | {stats['total']} | {stats['errors']} | {stats['error_rate']:.2%} |")
+    for layer_key, layer_results in report['results'].items():
+        lines.append(f"### {layer_key}\n")
+        lines.append("| 架构 | 参数量 | Accuracy | Precision | Recall | F1 | AUC |")
+        lines.append("|------|--------|----------|-----------|--------|----|-----|")
+        for arch_name, result in layer_results.items():
+            m = result['metrics']
+            lines.append(
+                f"| {arch_name} | {result['params']:,} "
+                f"| {m['accuracy']:.4f} | {m['precision']:.4f} "
+                f"| {m['recall']:.4f} | {m['f1']:.4f} | {m['auc']:.4f} |"
+            )
         lines.append("")
+
+    # 各层各架构攻击类型错误分析
+    lines.append("## 攻击类型错误分析\n")
+    for layer_key, layer_results in report['results'].items():
+        lines.append(f"### {layer_key}\n")
+        for arch_name, result in layer_results.items():
+            lines.append(f"#### {arch_name}\n")
+            error_by_type = result['metrics'].get('error_by_attack_type', {})
+            lines.append("| 攻击类型 | 总样本 | 错误数 | 错误率 |")
+            lines.append("|---------|--------|--------|--------|")
+            for attack_type, stats in sorted(error_by_type.items(), key=lambda x: -x[1]['error_rate']):
+                lines.append(f"| {attack_type} | {stats['total']} | {stats['errors']} | {stats['error_rate']:.2%} |")
+            lines.append("")
 
     md_path = os.path.join(output_dir, 'experiment_report.md')
     with open(md_path, 'w', encoding='utf-8') as f:
@@ -249,52 +253,59 @@ def main(args=None):
     attack_samples = generate_attacks(honest_samples, config)
     all_samples = honest_samples + attack_samples
 
-    # 创建数据集
-    dataset = DiscriminatorDataset(all_samples)
-    train_size = int(config['training']['train_ratio'] * len(dataset))
-    val_size = int(config['training']['val_ratio'] * len(dataset))
-    test_size = len(dataset) - train_size - val_size
-
-    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
-
-    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=config['training']['batch_size'])
-    test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'])
-
-    logger.info(f"数据分割: Train={train_size}, Val={val_size}, Test={test_size}")
-
-    # 训练所有架构
+    # 按层训练独立判别器（D_theta^(k)）
+    target_layers = config['model']['target_layers']
     results = {}
-    for arch_config in arch_list:
-        logger.info("=" * 50)
-        logger.info(f"训练架构: {arch_config['name']}")
-        logger.info("=" * 50)
 
-        # 根据类型创建模型
-        arch_type = arch_config.get('type', 'mlp')
-        if arch_type == 'mlp':
-            model = Discriminator(config['model']['hidden_dim'], arch_config['hidden_dims'], arch_config['dropout'])
-        elif arch_type == 'cnn':
-            model = CNNDiscriminator(config['model']['hidden_dim'], arch_config['channels'], arch_config['kernel_size'], arch_config['dropout'])
-        elif arch_type == 'attention':
-            model = AttentionDiscriminator(config['model']['hidden_dim'], arch_config['num_heads'], arch_config['hidden_dim'], arch_config['dropout'])
-        elif arch_type == 'resnet':
-            model = ResNetDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['num_blocks'], arch_config['dropout'])
-        elif arch_type == 'transformer':
-            model = TransformerDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['num_heads'], arch_config['num_layers'], arch_config['dropout'])
-        else:
-            raise ValueError(f"Unknown architecture type: {arch_type}")
+    for layer_idx in target_layers:
+        logger.info(f"\n{'='*50}")
+        logger.info(f"训练层 {layer_idx} 的判别器")
+        logger.info(f"{'='*50}")
 
-        logger.info(f"模型参数量: {model.count_parameters():,}")
+        # 按层过滤样本
+        full_dataset = DiscriminatorDataset(all_samples)
+        layer_dataset = full_dataset.get_layer_samples(layer_idx)
+        train_size = int(config['training']['train_ratio'] * len(layer_dataset))
+        val_size = int(config['training']['val_ratio'] * len(layer_dataset))
+        test_size = len(layer_dataset) - train_size - val_size
 
-        trainer = DiscriminatorTrainer(model, train_loader, val_loader, training_config, device)
-        save_dir = os.path.join(output_dir, arch_config['name'])
-        history = trainer.train(config['training']['epochs'], save_dir)
+        train_dataset, val_dataset, test_dataset = random_split(layer_dataset, [train_size, val_size, test_size])
+        train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=config['training']['batch_size'])
+        test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'])
+        logger.info(f"层 {layer_idx} 数据分割: Train={train_size}, Val={val_size}, Test={test_size}")
 
-        evaluator = DiscriminatorEvaluator(model, test_loader, device)
-        metrics = evaluator.evaluate()
+        results[f'layer_{layer_idx}'] = {}
+        for arch_config in arch_list:
+            logger.info("=" * 50)
+            logger.info(f"训练架构: {arch_config['name']}")
+            logger.info("=" * 50)
 
-        results[arch_config['name']] = {'history': history, 'metrics': metrics, 'params': model.count_parameters()}
+            # 根据类型创建模型
+            arch_type = arch_config.get('type', 'mlp')
+            if arch_type == 'mlp':
+                model = Discriminator(config['model']['hidden_dim'], arch_config['hidden_dims'], arch_config['dropout'])
+            elif arch_type == 'cnn':
+                model = CNNDiscriminator(config['model']['hidden_dim'], arch_config['channels'], arch_config['kernel_size'], arch_config['dropout'])
+            elif arch_type == 'attention':
+                model = AttentionDiscriminator(config['model']['hidden_dim'], arch_config['num_heads'], arch_config['hidden_dim'], arch_config['dropout'])
+            elif arch_type == 'resnet':
+                model = ResNetDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['num_blocks'], arch_config['dropout'])
+            elif arch_type == 'transformer':
+                model = TransformerDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['num_heads'], arch_config['num_layers'], arch_config['dropout'])
+            else:
+                raise ValueError(f"Unknown architecture type: {arch_type}")
+
+            logger.info(f"模型参数量: {model.count_parameters():,}")
+
+            trainer = DiscriminatorTrainer(model, train_loader, val_loader, training_config, device)
+            save_dir = os.path.join(output_dir, f'layer_{layer_idx}', arch_config['name'])
+            history = trainer.train(config['training']['epochs'], save_dir)
+
+            evaluator = DiscriminatorEvaluator(model, test_loader, device)
+            metrics = evaluator.evaluate()
+
+            results[f'layer_{layer_idx}'][arch_config['name']] = {'history': history, 'metrics': metrics, 'params': model.count_parameters()}
 
     # 生成实验报告
     generate_experiment_report(config, results, honest_samples, attack_samples, output_dir)
