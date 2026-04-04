@@ -59,6 +59,26 @@ discriminator:
       hidden_dim: 512
       dropout: 0.3
 
+# 超大型架构（--huge 参数启用，10M-100M 级别）
+  huge_architectures:
+    - name: "resnet_mlp"
+      type: "resnet"
+      hidden_dim: 4096
+      num_blocks: 8
+      dropout: 0.3
+    - name: "transformer_medium"
+      type: "transformer"
+      hidden_dim: 2048
+      num_heads: 16
+      num_layers: 6
+      dropout: 0.3
+    - name: "transformer_large"
+      type: "transformer"
+      hidden_dim: 4096
+      num_heads: 16
+      num_layers: 12
+      dropout: 0.3
+
 # Stage 2 攻击配置
 attacks:
   layer_skipping:

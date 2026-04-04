@@ -20,7 +20,7 @@ from data_generator import HonestSampleGenerator, DatasetLoader
 from sample_cache import SampleCache
 from data.attack_generator import LayerSkippingGenerator, PrecisionDowngradeGenerator, AdversarialPerturbationGenerator
 from data.dataset import DiscriminatorDataset
-from models.discriminator import Discriminator, CNNDiscriminator, AttentionDiscriminator
+from models.discriminator import Discriminator, CNNDiscriminator, AttentionDiscriminator, ResNetDiscriminator, TransformerDiscriminator
 from training.trainer import DiscriminatorTrainer
 from training.evaluator import DiscriminatorEvaluator
 import json
@@ -218,7 +218,10 @@ def main(args=None):
     device = torch.device('cuda' if torch.cuda.is_available() and config['training']['device'] == 'auto' else 'cpu')
 
     # 根据参数选择架构列表
-    if args and args.big:
+    if args and args.huge:
+        arch_list = config['discriminator'].get('huge_architectures', config['discriminator']['architectures'])
+        mode = 'huge'
+    elif args and args.big:
         arch_list = config['discriminator'].get('big_architectures', config['discriminator']['architectures'])
         mode = 'big'
     else:
@@ -275,6 +278,10 @@ def main(args=None):
             model = CNNDiscriminator(config['model']['hidden_dim'], arch_config['channels'], arch_config['kernel_size'], arch_config['dropout'])
         elif arch_type == 'attention':
             model = AttentionDiscriminator(config['model']['hidden_dim'], arch_config['num_heads'], arch_config['hidden_dim'], arch_config['dropout'])
+        elif arch_type == 'resnet':
+            model = ResNetDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['num_blocks'], arch_config['dropout'])
+        elif arch_type == 'transformer':
+            model = TransformerDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['num_heads'], arch_config['num_layers'], arch_config['dropout'])
         else:
             raise ValueError(f"Unknown architecture type: {arch_type}")
 
@@ -304,6 +311,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--big', action='store_true', help='训练更大的模型架构')
+    parser.add_argument('--huge', action='store_true', help='训练超大模型架构（10M-100M）')
     parser.add_argument('--novel', action='store_true', help='使用新型损失函数（Focal Loss）')
     args = parser.parse_args()
     main(args)
