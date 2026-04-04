@@ -52,12 +52,12 @@ training:
   batch_size: 64
   learning_rate: 1e-4
   weight_decay: 1e-5
-  early_stopping_patience: 5
+  early_stopping_patience: 10
   train_ratio: 0.7
   val_ratio: 0.15
   test_ratio: 0.15
   device: "auto"  # auto, cpu, cuda
-  class_weights: [21.0, 1.0]  # [诚实样本权重, 攻击样本权重]，用于处理类别不平衡
+  class_weights: [1, 10]  # [诚实样本权重, 攻击样本权重]，用于处理类别不平衡
 
 # 实验参数
 experiment:
