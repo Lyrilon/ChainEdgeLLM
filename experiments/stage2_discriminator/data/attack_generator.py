@@ -54,6 +54,11 @@ class PrecisionDowngradeGenerator:
         """量化后反量化"""
         if bits == 16:
             return x.astype(np.float16).astype(np.float32)
+        elif bits == 6:
+            x_min, x_max = x.min(), x.max()
+            scale = (x_max - x_min) / 63.0
+            quantized = np.round((x - x_min) / scale).clip(0, 63).astype(np.uint8)
+            return quantized.astype(np.float32) * scale + x_min
         elif bits == 8:
             x_min, x_max = x.min(), x.max()
             scale = (x_max - x_min) / 255.0

@@ -282,6 +282,11 @@ class HiddenStateExtractor:
         self.hidden_states = {}
         self._register_hooks()
 
+        device = next(self.model.parameters()).device
+        input_ids = input_ids.to(device)
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(device)
+
         with torch.no_grad():
             _ = self.model(input_ids=input_ids, attention_mask=attention_mask)
 

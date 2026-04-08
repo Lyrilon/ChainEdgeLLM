@@ -5,6 +5,11 @@
 *.tex
 *.pdf
 *.zip
-*.bib 
+*.bib
 *.cls
+*.deb
+*.pt
 experiments/stage1_separability/data/*
+experiments/stage2_discriminator/results/
+.ipynb_checkpoints/
+.claude/

@@ -20,9 +20,10 @@ from data_generator import HonestSampleGenerator, DatasetLoader
 from sample_cache import SampleCache
 from data.attack_generator import LayerSkippingGenerator, PrecisionDowngradeGenerator, AdversarialPerturbationGenerator
 from data.dataset import DiscriminatorDataset
-from models.discriminator import Discriminator, CNNDiscriminator, AttentionDiscriminator, ResNetDiscriminator, TransformerDiscriminator
+from models.discriminator import Discriminator, CNNDiscriminator, AttentionDiscriminator, ResNetDiscriminator, TransformerDiscriminator, BNResNetDiscriminator, DualStreamDiscriminator, GatedDualStreamDiscriminator, TripleStreamDiscriminator, StatEnhancedGatedDiscriminator, FFTEnhancedDiscriminator
 from training.trainer import DiscriminatorTrainer
 from training.evaluator import DiscriminatorEvaluator
+from training.ensemble_evaluator import EnsembleEvaluator
 import json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -262,18 +263,65 @@ def main(args=None):
         logger.info(f"训练层 {layer_idx} 的判别器")
         logger.info(f"{'='*50}")
 
+        # Per-layer 训练配置覆盖（在全局 training_config 基础上叠加）
+        layer_key = f'layer_{layer_idx}'
+        per_layer_overrides = config.get('per_layer_training', {}).get(layer_key, {})
+        layer_training_config = {**training_config, **per_layer_overrides}
+        if per_layer_overrides:
+            logger.info(f"层 {layer_idx} 使用 per-layer 配置覆盖: {per_layer_overrides}")
+
+        # 是否对该层启用数据增强
+        aug_cfg = config.get('augmentation', {})
+        use_aug = aug_cfg.get('enabled', False)
+        aug_layers = aug_cfg.get('layers', [])
+        do_augment = use_aug and (not aug_layers or layer_idx in aug_layers)
+
         # 按层过滤样本
         full_dataset = DiscriminatorDataset(all_samples)
-        layer_dataset = full_dataset.get_layer_samples(layer_idx)
-        train_size = int(config['training']['train_ratio'] * len(layer_dataset))
-        val_size = int(config['training']['val_ratio'] * len(layer_dataset))
-        test_size = len(layer_dataset) - train_size - val_size
+        layer_dataset_base = full_dataset.get_layer_samples(layer_idx)
 
-        train_dataset, val_dataset, test_dataset = random_split(layer_dataset, [train_size, val_size, test_size])
+        # 训练集启用增强，验证/测试集不启用
+        from data.dataset import DiscriminatorDataset as DS
+        layer_samples_list = [s for s in all_samples if s.layer_idx == layer_idx]
+        train_size = int(config['training']['train_ratio'] * len(layer_samples_list))
+        val_size = int(config['training']['val_ratio'] * len(layer_samples_list))
+
+        np.random.seed(config['experiment']['seed'])
+        indices = np.random.permutation(len(layer_samples_list))
+        train_idx = indices[:train_size]
+        val_idx = indices[train_size:train_size + val_size]
+        test_idx = indices[train_size + val_size:]
+
+        train_samples = [layer_samples_list[i] for i in train_idx]
+        val_samples = [layer_samples_list[i] for i in val_idx]
+        test_samples = [layer_samples_list[i] for i in test_idx]
+
+        # 是否对该层启用特征归一化（layer-specific z-score）
+        norm_cfg = config.get('normalization', {})
+        use_norm = norm_cfg.get('enabled', False)
+        norm_layers = norm_cfg.get('layers', [])
+        do_normalize = use_norm and (not norm_layers or layer_idx in norm_layers)
+
+        train_dataset = DS(train_samples, augment=do_augment,
+                           aug_noise_std=aug_cfg.get('noise_std', 0.01),
+                           aug_dropout_p=aug_cfg.get('dropout_p', 0.05),
+                           normalize=do_normalize)
+        # val/test 使用训练集的统计量
+        val_dataset  = DS(val_samples,  normalize=do_normalize,
+                          norm_stats=train_dataset.norm_stats)
+        test_dataset = DS(test_samples, normalize=do_normalize,
+                          norm_stats=train_dataset.norm_stats)
+
+        if do_normalize:
+            logger.info(f"层 {layer_idx} 启用 layer-specific z-score 归一化")
+
+        if do_augment:
+            logger.info(f"层 {layer_idx} 训练集启用数据增强 (noise_std={aug_cfg.get('noise_std', 0.01)}, dropout_p={aug_cfg.get('dropout_p', 0.05)})")
+
         train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=config['training']['batch_size'])
         test_loader = DataLoader(test_dataset, batch_size=config['training']['batch_size'])
-        logger.info(f"层 {layer_idx} 数据分割: Train={train_size}, Val={val_size}, Test={test_size}")
+        logger.info(f"层 {layer_idx} 数据分割: Train={len(train_samples)}, Val={len(val_samples)}, Test={len(test_samples)}")
 
         results[f'layer_{layer_idx}'] = {}
         for arch_config in arch_list:
@@ -282,23 +330,37 @@ def main(args=None):
             logger.info("=" * 50)
 
             # 根据类型创建模型
+            # 输入维度为 hidden_dim * 2（x_curr 拼接 delta = x_curr - x_prev）
+            input_dim = config['model']['hidden_dim'] * 2
             arch_type = arch_config.get('type', 'mlp')
             if arch_type == 'mlp':
-                model = Discriminator(config['model']['hidden_dim'], arch_config['hidden_dims'], arch_config['dropout'])
+                model = Discriminator(input_dim, arch_config['hidden_dims'], arch_config['dropout'])
             elif arch_type == 'cnn':
-                model = CNNDiscriminator(config['model']['hidden_dim'], arch_config['channels'], arch_config['kernel_size'], arch_config['dropout'])
+                model = CNNDiscriminator(input_dim, arch_config['channels'], arch_config['kernel_size'], arch_config['dropout'])
             elif arch_type == 'attention':
-                model = AttentionDiscriminator(config['model']['hidden_dim'], arch_config['num_heads'], arch_config['hidden_dim'], arch_config['dropout'])
+                model = AttentionDiscriminator(input_dim, arch_config['num_heads'], arch_config['hidden_dim'], arch_config['dropout'])
             elif arch_type == 'resnet':
-                model = ResNetDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['num_blocks'], arch_config['dropout'])
+                model = ResNetDiscriminator(input_dim, arch_config['hidden_dim'], arch_config['num_blocks'], arch_config['dropout'])
             elif arch_type == 'transformer':
-                model = TransformerDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['num_heads'], arch_config['num_layers'], arch_config['dropout'])
+                model = TransformerDiscriminator(input_dim, arch_config['hidden_dim'], arch_config['num_heads'], arch_config['num_layers'], arch_config['dropout'])
+            elif arch_type == 'bn_resnet':
+                model = BNResNetDiscriminator(input_dim, arch_config['hidden_dim'], arch_config['num_blocks'], arch_config['dropout'])
+            elif arch_type == 'dual_stream':
+                model = DualStreamDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['dropout'])
+            elif arch_type == 'gated_dual_stream':
+                model = GatedDualStreamDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['dropout'])
+            elif arch_type == 'triple_stream':
+                model = TripleStreamDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['dropout'])
+            elif arch_type == 'stat_enhanced_gated':
+                model = StatEnhancedGatedDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['dropout'], arch_config.get('proj_dim', 128))
+            elif arch_type == 'fft_enhanced':
+                model = FFTEnhancedDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['dropout'], arch_config.get('proj_dim', 128), arch_config.get('n_fft_feats', 32))
             else:
                 raise ValueError(f"Unknown architecture type: {arch_type}")
 
             logger.info(f"模型参数量: {model.count_parameters():,}")
 
-            trainer = DiscriminatorTrainer(model, train_loader, val_loader, training_config, device)
+            trainer = DiscriminatorTrainer(model, train_loader, val_loader, layer_training_config, device)
             save_dir = os.path.join(output_dir, f'layer_{layer_idx}', arch_config['name'])
             history = trainer.train(config['training']['epochs'], save_dir)
 
@@ -306,6 +368,43 @@ def main(args=None):
             metrics = evaluator.evaluate()
 
             results[f'layer_{layer_idx}'][arch_config['name']] = {'history': history, 'metrics': metrics, 'params': model.count_parameters()}
+
+        # 集成评估：对本层所有训练完的模型做 soft voting
+        trained_models = []
+        for arch_config in arch_list:
+            save_dir = os.path.join(output_dir, f'layer_{layer_idx}', arch_config['name'])
+            best_model_path = os.path.join(save_dir, 'best_model.pt')
+            if os.path.exists(best_model_path):
+                input_dim = config['model']['hidden_dim'] * 2
+                arch_type = arch_config.get('type', 'mlp')
+                if arch_type == 'mlp':
+                    m = Discriminator(input_dim, arch_config['hidden_dims'], arch_config['dropout'])
+                elif arch_type == 'cnn':
+                    m = CNNDiscriminator(input_dim, arch_config['channels'], arch_config['kernel_size'], arch_config['dropout'])
+                elif arch_type == 'gated_dual_stream':
+                    m = GatedDualStreamDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['dropout'])
+                elif arch_type == 'triple_stream':
+                    m = TripleStreamDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['dropout'])
+                elif arch_type == 'stat_enhanced_gated':
+                    m = StatEnhancedGatedDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['dropout'], arch_config.get('proj_dim', 128))
+                elif arch_type == 'fft_enhanced':
+                    m = FFTEnhancedDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['dropout'], arch_config.get('proj_dim', 128), arch_config.get('n_fft_feats', 32))
+                elif arch_type == 'dual_stream':
+                    m = DualStreamDiscriminator(config['model']['hidden_dim'], arch_config['hidden_dim'], arch_config['dropout'])
+                elif arch_type == 'bn_resnet':
+                    m = BNResNetDiscriminator(input_dim, arch_config['hidden_dim'], arch_config['num_blocks'], arch_config['dropout'])
+                else:
+                    continue
+                m.load_state_dict(torch.load(best_model_path, map_location=device))
+                trained_models.append(m)
+
+        if len(trained_models) > 1:
+            logger.info(f"\n{'='*50}")
+            logger.info(f"层 {layer_idx} 集成评估（{len(trained_models)} 个模型 soft voting）")
+            logger.info(f"{'='*50}")
+            ensemble_eval = EnsembleEvaluator(trained_models, test_loader, device)
+            ensemble_metrics = ensemble_eval.evaluate()
+            results[f'layer_{layer_idx}']['__ensemble__'] = {'metrics': ensemble_metrics, 'num_models': len(trained_models)}
 
     # 生成实验报告
     generate_experiment_report(config, results, honest_samples, attack_samples, output_dir)

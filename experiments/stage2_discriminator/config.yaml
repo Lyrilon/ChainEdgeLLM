@@ -5,7 +5,7 @@
 model:
   name: "qwen2.5-1.5b-instruct"
   modelscope_id: "qwen/Qwen2.5-1.5B-Instruct"
-  target_layers: [7, 14, 21]
+  target_layers: [21]         # 专注 layer_21
   hidden_dim: 1536
   max_length: 256
 
@@ -14,69 +14,57 @@ dataset:
   name: "alpaca"
   modelscope_id: "AI-ModelScope/alpaca-gpt4-data-en"
   subset: "train"
-  num_samples: 2000
+  num_samples: 8000           # 从 4000 扩大到 8000
 
-# 判别器架构配置
+# 判别器架构配置（仅 layer_21 优化）
 discriminator:
   architectures:
-    - name: "mlp_large"
-      type: "mlp"
-      hidden_dims: [1024, 512, 256, 128]
-      dropout: 0.3
-    - name: "mlp_medium"
-      type: "mlp"
-      hidden_dims: [512, 256, 128]
-      dropout: 0.3
-    - name: "mlp_small"
-      type: "mlp"
-      hidden_dims: [256, 128, 64]
-      dropout: 0.3
-    - name: "cnn"
-      type: "cnn"
-      channels: [64, 128, 256]
-      kernel_size: 3
-      dropout: 0.3
-    - name: "attention"
-      type: "attention"
-      num_heads: 8
+    # --- 方向二：频域特征（FFT + GatedDual + Stat 三流融合）---
+    - name: "fft_enhanced_s"
+      type: "fft_enhanced"
       hidden_dim: 256
-      dropout: 0.3
+      dropout: 0.2
+      proj_dim: 128
+      n_fft_feats: 32
+
+    - name: "fft_enhanced_m"
+      type: "fft_enhanced"
+      hidden_dim: 512
+      dropout: 0.2
+      proj_dim: 256
+      n_fft_feats: 32
+
+    # --- 方向三：特征归一化（用现有最佳架构 + z-score 归一化输入）---
+    # 归一化通过 config.normalization 控制，架构与 v8 最佳相同
+    - name: "gated_dual_s_norm"
+      type: "gated_dual_stream"
+      hidden_dim: 256
+      dropout: 0.2
+
+    - name: "stat_enhanced_m_norm"
+      type: "stat_enhanced_gated"
+      hidden_dim: 512
+      dropout: 0.2
+      proj_dim: 256
 
 # 大型架构（--big 参数启用）
   big_architectures:
-    - name: "mlp_xlarge"
-      type: "mlp"
-      hidden_dims: [2048, 1024, 512, 256, 128]
-      dropout: 0.3
-    - name: "cnn_deep"
-      type: "cnn"
-      channels: [64, 128, 256, 512]
-      kernel_size: 5
-      dropout: 0.3
-    - name: "attention_large"
-      type: "attention"
-      num_heads: 16
-      hidden_dim: 512
-      dropout: 0.3
+    - name: "stat_enhanced_l"
+      type: "stat_enhanced_gated"
+      hidden_dim: 1024
+      dropout: 0.2
+      proj_dim: 512
+    - name: "gated_dual_l"
+      type: "gated_dual_stream"
+      hidden_dim: 1024
+      dropout: 0.2
 
-# 超大型架构（--huge 参数启用，10M-100M 级别）
+# 超大型架构（--huge 参数启用）
   huge_architectures:
     - name: "resnet_mlp"
       type: "resnet"
       hidden_dim: 4096
       num_blocks: 8
-      dropout: 0.3
-    - name: "transformer_medium"
-      type: "transformer"
-      hidden_dim: 2048
-      num_heads: 16
-      num_layers: 6
-      dropout: 0.3
-    - name: "transformer_large"
-      type: "transformer"
-      hidden_dim: 4096
-      num_heads: 16
-      num_layers: 12
       dropout: 0.3
 
 # Stage 2 攻击配置
@@ -86,7 +74,7 @@ attacks:
 
   precision_downgrade:
     enabled: true
-    bit_widths: [16, 8, 4]  # FP16, INT8, INT4
+    bit_widths: [6, 8, 4]     # 新增 INT6，覆盖更多量化强度梯度
 
   adversarial_perturbation:
     enabled: true
@@ -95,16 +83,43 @@ attacks:
 
 # 训练配置
 training:
-  epochs: 50
-  batch_size: 64
-  learning_rate: 1e-4
-  weight_decay: 1e-5
-  early_stopping_patience: 10
+  epochs: 80
+  batch_size: 4096
+  learning_rate: 8e-4
+  weight_decay: 1e-4
+  warmup_epochs: 5
+  grad_clip: 1.0
+  label_smoothing: 0.05       # 轻微 label smoothing，防止过拟合
+  early_stopping_patience: 15
   train_ratio: 0.7
   val_ratio: 0.15
   test_ratio: 0.15
-  device: "auto"  # auto, cpu, cuda
-  class_weights: [1, 21]  # [攻击样本权重(label=0), 诚实样本权重(label=1)]，诚实样本占比1/22，给予更高权重
+  device: "auto"
+  class_weights: [1, 7]
+
+# Per-layer 训练配置覆盖
+per_layer_training:
+  layer_21:
+    loss: "supcon_ce"
+    supcon_weight: 0.4
+    supcon_temperature: 0.07
+    epochs: 120
+    early_stopping_patience: 25
+    learning_rate: 5e-4
+    label_smoothing: 0.05
+    class_weights: [1, 5]
+
+# 数据增强配置
+augmentation:
+  enabled: true
+  layers: [21]
+  noise_std: 0.005
+  dropout_p: 0.03
+
+# 特征归一化配置（方向三）
+normalization:
+  enabled: true
+  layers: [21]              # layer_21 的 x_curr norm 远大于其他层，归一化后 delta 信号更突出
 
 # 实验参数
 experiment:

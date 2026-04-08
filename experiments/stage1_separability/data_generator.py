@@ -402,7 +402,6 @@ class DatasetLoader:
                 split=split,
                 cache_dir=self.cache_dir
             )
-
             # 提取文本
             texts = []
             for i, item in enumerate(dataset):
